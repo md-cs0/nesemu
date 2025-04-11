@@ -1,15 +1,16 @@
 /*
-; Test main.c file! I haven't touched CMake for a bit, so just sorting things out.
+; Top-level translation unit; used for invoking NES computer and outputting the
+; display/audio behind the scenes via SDL.
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <assert.h>
-#include <SDL.h>
 
-#define NES_W   256
-#define NES_H   240
+#include "SDL.h"
+
+#include "constants.h"
 
 int main(int argc, char** argv)
 {
@@ -27,13 +28,13 @@ int main(int argc, char** argv)
                                             NES_W, NES_H);
     assert(buffer);
     
-    SDL_Colour grid[NES_H * NES_W];
+    SDL_Color grid[NES_H * NES_W];
     for (int i = 0; i < sizeof(grid) / sizeof(grid[0]); ++i)
     {
         grid[i].a = 0;
-        grid[i].r = 0;
-        grid[i].g = rand() % 256; // Obviously don't do this in real code, due to modulo bias!
-        grid[i].b = rand() % 256;
+        grid[i].r = 255;
+        grid[i].g = 0;//#rand() % 256; // Obviously don't do this in real code, due to modulo bias!
+        grid[i].b = 0;//rand() % 256;
     }
 
     for (;;)
@@ -49,7 +50,7 @@ int main(int argc, char** argv)
         }
 
         SDL_RenderClear(renderer);
-        SDL_UpdateTexture(buffer, NULL, grid, NES_W * 4);
+        SDL_UpdateTexture(buffer, NULL, grid, NES_W * sizeof(SDL_Color));
         SDL_RenderCopy(renderer, buffer, NULL, NULL);
         SDL_RenderPresent(renderer);
     }
