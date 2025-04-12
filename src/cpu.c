@@ -4,7 +4,7 @@
 ;
 ; I should note that this emulation isn't aiming to be accurate. There's many discrepancies
 ; that can be observed here, including the lack of T states, no interrupt hijackings,
-; instruction cycles aren't really separate to begin with, etc.
+; instruction cycles aren't really separate to begin with, inaccurate interrupt timings, etc.
 */
 
 #include <stdint.h>
@@ -47,6 +47,10 @@ static bool op_bpl(struct cpu* cpu);
 static bool op_brk(struct cpu* cpu);
 static bool op_bvc(struct cpu* cpu);
 static bool op_bvs(struct cpu* cpu);
+static bool op_clc(struct cpu* cpu);
+static bool op_cld(struct cpu* cpu);
+static bool op_cli(struct cpu* cpu);
+static bool op_clv(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -100,7 +104,7 @@ static struct opcode op_lookup[] =
     {"???", 0x15, 0, addr_zpg,   NULL},
     {"ASL", 0x16, 6, addr_zpg_x, op_asl},
     {"???", 0x17, 0, addr_zpg,   NULL},
-    {"???", 0x18, 0, addr_zpg,   NULL},
+    {"CLC", 0x18, 2, addr_impl,  op_clc},
     {"???", 0x19, 0, addr_zpg,   NULL},
     {"???", 0x1A, 0, addr_zpg,   NULL},
     {"???", 0x1B, 0, addr_zpg,   NULL},
@@ -172,7 +176,7 @@ static struct opcode op_lookup[] =
     {"???", 0x55, 0, addr_zpg,   NULL},
     {"???", 0x56, 0, addr_zpg,   NULL},
     {"???", 0x57, 0, addr_zpg,   NULL},
-    {"???", 0x58, 0, addr_zpg,   NULL},
+    {"CLI", 0x58, 2, addr_impl,  op_cli},
     {"???", 0x59, 0, addr_zpg,   NULL},
     {"???", 0x5A, 0, addr_zpg,   NULL},
     {"???", 0x5B, 0, addr_zpg,   NULL},
@@ -280,7 +284,7 @@ static struct opcode op_lookup[] =
     {"???", 0xB5, 0, addr_zpg,   NULL},
     {"???", 0xB6, 0, addr_zpg,   NULL},
     {"???", 0xB7, 0, addr_zpg,   NULL},
-    {"???", 0xB8, 0, addr_zpg,   NULL},
+    {"CLV", 0xB8, 2, addr_impl,  op_clv},
     {"???", 0xB9, 0, addr_zpg,   NULL},
     {"???", 0xBA, 0, addr_zpg,   NULL},
     {"???", 0xBB, 0, addr_zpg,   NULL},
@@ -316,7 +320,7 @@ static struct opcode op_lookup[] =
     {"???", 0xD5, 0, addr_zpg,   NULL},
     {"???", 0xD6, 0, addr_zpg,   NULL},
     {"???", 0xD7, 0, addr_zpg,   NULL},
-    {"???", 0xD8, 0, addr_zpg,   NULL},
+    {"CLD", 0xD8, 2, addr_impl,  op_cld},
     {"???", 0xD9, 0, addr_zpg,   NULL},
     {"???", 0xDA, 0, addr_zpg,   NULL},
     {"???", 0xDB, 0, addr_zpg,   NULL},
@@ -722,6 +726,60 @@ static bool op_bvs(struct cpu* cpu)
     return true;
 }
 
+// CLC: clear the carry flag.
+static bool op_clc(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_C, false);
+    return false;
+}
+
+// CLD: clear the decimal flag.
+static bool op_cld(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_D, false);
+    return false;
+}
+
+// CLI: clear the interrupt disable flag. If IRQ is held low, the IRQ isn't triggered
+// until after the next instruction.
+static bool op_cli(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_I, false);
+    cpu->irq_cli_disable = true;
+    return false;
+}
+
+// CLV: clear the overflow flag.
+static bool op_clv(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_V, false);
+    return false;
+}
+
+// Trigger an IRQ (low level-sensitive).
+static void cpu_irq(struct cpu* cpu)
+{
+    // If the IRQ disable flag is set, continue.
+    if (cpu_getflag(cpu, CPUFLAG_I))
+        return;
+
+    // Push the PC and processor status.
+    cpu_push(cpu, cpu->pc >> 8);
+    cpu_push(cpu, cpu->pc);
+    cpu_push(cpu, cpu->p);
+
+    // Fetch the new PC.
+    cpu->pc = IRQ_VECTOR;
+    addr_ind(cpu);
+    cpu->pc = cpu->addr_fetched;
+
+    // Toggle the IRQ disable flag.
+    cpu_setflag(cpu, CPUFLAG_I, true);
+
+    // Wait 7 cycles.
+    cpu->cycles = 7;
+}
+
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
 // software BRK, the PC/processor status write sequences are still present, meaning
 // the stack pointer still decrements by 3. However, the R/W line is held high,
@@ -758,30 +816,6 @@ void cpu_nmi(struct cpu* cpu)
     cpu->cycles = 7;
 }
 
-// Trigger an IRQ (low level-sensitive).
-void cpu_irq(struct cpu* cpu)
-{
-    // If the IRQ disable flag is set, continue.
-    if (cpu_getflag(cpu, CPUFLAG_I))
-        return;
-
-    // Push the PC and processor status.
-    cpu_push(cpu, cpu->pc >> 8);
-    cpu_push(cpu, cpu->pc);
-    cpu_push(cpu, cpu->p);
-
-    // Fetch the new PC.
-    cpu->pc = IRQ_VECTOR;
-    addr_ind(cpu);
-    cpu->pc = cpu->addr_fetched;
-
-    // Toggle the IRQ disable flag.
-    cpu_setflag(cpu, CPUFLAG_I, true);
-
-    // Wait 7 cycles.
-    cpu->cycles = 7;
-}
-
 // Execute a CPU clock.
 void cpu_clock(struct cpu* cpu)
 {
@@ -791,6 +825,15 @@ void cpu_clock(struct cpu* cpu)
         cpu->cycles--;
         return;
     }
+
+    // If the IRQ signal is held low and irq_cli_disable is false,
+    // trigger an IRQ.
+    if (!cpu->irq && !cpu->irq_cli_disable)
+    {
+        cpu_irq(cpu);
+        return;
+    }
+    cpu->irq_cli_disable = false;
     
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.
@@ -814,6 +857,7 @@ struct cpu* cpu_alloc()
     cpu->a = cpu->x = cpu->y = cpu->s = 0x00;
     cpu->p = 0b00100000;
     cpu->pc = RESET_VECTOR;
+    cpu->irq = true;
     return cpu;
 }
 
