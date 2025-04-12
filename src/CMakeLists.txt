@@ -1,4 +1,4 @@
-add_executable(nesemu "main.c")
+add_executable(nesemu "main.c" "util.c" "nes.c" "cpu.c")
 target_include_directories(nesemu PRIVATE CMAKE_CURRENT_SOURCE_DIR)
 
 target_link_libraries(nesemu PRIVATE SDL2::SDL2)

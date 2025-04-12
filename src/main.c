@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <Windows.h> // (TEMP)
 
 #include "SDL.h"
 
 #include "constants.h"
+#include "nes.h"
 
 // Create display information for this current session.
 struct display_data
@@ -18,8 +18,8 @@ struct display_data
     SDL_Window* window;     // The window itself.    
     SDL_Renderer* renderer; // The renderer used for the window.
     SDL_Texture* buffer;    // The buffer that is being manipulated by the emulator.
-    int w;                  // The current display width.
-    int h;                  // The current display height.
+    unsigned w;             // The current display width.
+    unsigned h;             // The current display height.
 };
 static struct display_data display;
 
@@ -103,34 +103,9 @@ int main(int argc, char** argv)
     display.w = NES_W;
     display.h = NES_H;
     
-    // Create a grid of random pretty colours.
-    const int square_size = 1;
-    SDL_Color grid[NES_H * NES_W] = {0};
-    for (int y = 0; y < NES_H; y += square_size)
-    {
-        for (int x = 0; x < NES_W; x += square_size)
-        {
-            int g = rand() % 256; // Don't use this in real code due to modulo bias!
-            int b = rand() % 256;
-            for (int y1 = 0; y1 < square_size; ++y1)
-            {
-                for (int x1 = 0; x1 < square_size; ++x1)
-                {
-                    int coord = y * NES_W + y1 * NES_W + x + x1;
-                    grid[coord].a = 0;
-                    grid[coord].r = 0;
-                    grid[coord].g = g;
-                    grid[coord].b = b;
-                }
-            }
-        }
-    }
-
-    // (TEMP) get the performance frequency and the start timestamp.
-    int frames = 0;
-    LARGE_INTEGER start, end, elapsed, frequency;
-    QueryPerformanceFrequency(&frequency);
-    QueryPerformanceCounter(&start);
+    // Set up the NES computer.
+    struct nes* computer = nes_alloc();
+    cpu_setnes(computer->cpu, computer);
 
     // Start the main event loop.
     SDL_AddEventWatch(watcher, NULL);
@@ -149,20 +124,8 @@ int main(int argc, char** argv)
         }
 
         // Update the buffer and re-render it.
-        SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(SDL_Color));
+        //SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(SDL_Color));
         update_render();
-
-        // (TEMP) if at least one second has elapsed, print the framerate.
-        QueryPerformanceCounter(&end);
-        frames++;
-        elapsed.QuadPart = end.QuadPart - start.QuadPart;
-        elapsed.QuadPart = (elapsed.QuadPart) / frequency.QuadPart;
-        if (elapsed.QuadPart >= 1)
-        {
-            printf("%dfps\n", frames);
-            frames = 0;
-            start = end;
-        }
     }
 
     // Exit.
