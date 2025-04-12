@@ -62,6 +62,8 @@ static bool op_eor(struct cpu* cpu);
 static bool op_inc(struct cpu* cpu);
 static bool op_inx(struct cpu* cpu);
 static bool op_iny(struct cpu* cpu);
+static bool op_jmp(struct cpu* cpu);
+static bool op_jsr(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -124,7 +126,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
 
     // 0x20 - 0x2F
-    {"???", 0, addr_zpg,   NULL},
+    {"JSR", 6, addr_abs,   op_jsr},
     {"AND", 6, addr_x_ind, op_and},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -172,7 +174,7 @@ static struct opcode op_lookup[] =
     {"EOR", 2, addr_imm,   op_eor},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"JMP", 3, addr_abs,   op_jmp},
     {"EOR", 4, addr_abs,   op_eor},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -208,7 +210,7 @@ static struct opcode op_lookup[] =
     {"ADC", 2, addr_imm,   op_adc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"JMP", 5, addr_ind,   op_jmp},
     {"ADC", 4, addr_abs,   op_adc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -925,6 +927,23 @@ static bool op_iny(struct cpu* cpu)
     cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
 
     // Return.
+    return false;
+}
+
+// JMP - jump to a specific memory location.
+static bool op_jmp(struct cpu* cpu)
+{
+    cpu->pc = cpu->addr_fetched;
+    return false;
+}
+
+// JMP - jump to a subroutine (same as JMP, but PC + 2 is pushed 
+// to stack too).
+static bool op_jsr(struct cpu* cpu)
+{
+    cpu_push(cpu, (cpu->pc - 1) >> 8);
+    cpu_push(cpu, (cpu->pc - 1));
+    cpu->pc = cpu->addr_fetched;
     return false;
 }
 
