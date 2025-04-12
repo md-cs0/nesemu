@@ -184,7 +184,7 @@ static inline uint8_t cpu_pop(struct cpu* cpu)
     return nes_read(cpu->computer, 0x100 | (cpu->s++));
 }
 
-// ADC: add with carry.
+// ADC: add with carry (may take extra cycle if page crossed).
 static bool op_adc(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
@@ -199,6 +199,23 @@ static bool op_adc(struct cpu* cpu)
 
     // Set the new accumulator value.
     cpu->a = result;
+    return true;
+}
+
+// AND: bitwise AND (may take extra cycle if page crossed).
+static bool op_and(struct cpu* cpu)
+{
+    // Calculate the new accumulator value.
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint16_t result = cpu->a & memory;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new accumulator value.
+    cpu->a = result;
+    return true;
 }
 
 // 6502 opcode struct.
@@ -252,37 +269,37 @@ struct opcode op_lookup[] =
 
     // 0x20 - 0x2F
     {"???", 0x20, 0, addr_zpg,   NULL},
-    {"???", 0x21, 0, addr_zpg,   NULL},
+    {"AND", 0x21, 6, addr_x_ind, op_and},
     {"???", 0x22, 0, addr_zpg,   NULL},
     {"???", 0x23, 0, addr_zpg,   NULL},
     {"???", 0x24, 0, addr_zpg,   NULL},
-    {"???", 0x25, 0, addr_zpg,   NULL},
+    {"AND", 0x25, 3, addr_zpg,   op_and},
     {"???", 0x26, 0, addr_zpg,   NULL},
     {"???", 0x27, 0, addr_zpg,   NULL},
     {"???", 0x28, 0, addr_zpg,   NULL},
-    {"???", 0x29, 0, addr_zpg,   NULL},
+    {"AND", 0x29, 2, addr_imm,   op_and},
     {"???", 0x2A, 0, addr_zpg,   NULL},
     {"???", 0x2B, 0, addr_zpg,   NULL},
     {"???", 0x2C, 0, addr_zpg,   NULL},
-    {"???", 0x2D, 0, addr_zpg,   NULL},
+    {"AND", 0x2D, 4, addr_abs,   op_and},
     {"???", 0x2E, 0, addr_zpg,   NULL},
     {"???", 0x2F, 0, addr_zpg,   NULL},
 
     // 0x30 - 0x3F
     {"???", 0x30, 0, addr_zpg,   NULL},
-    {"???", 0x31, 0, addr_zpg,   NULL},
+    {"AND", 0x31, 5, addr_ind_y, op_and},
     {"???", 0x32, 0, addr_zpg,   NULL},
     {"???", 0x33, 0, addr_zpg,   NULL},
     {"???", 0x34, 0, addr_zpg,   NULL},
-    {"???", 0x35, 0, addr_zpg,   NULL},
+    {"AND", 0x35, 4, addr_zpg_x, op_and},
     {"???", 0x36, 0, addr_zpg,   NULL},
     {"???", 0x37, 0, addr_zpg,   NULL},
     {"???", 0x38, 0, addr_zpg,   NULL},
-    {"???", 0x39, 0, addr_zpg,   NULL},
+    {"AND", 0x39, 4, addr_abs_y, op_and},
     {"???", 0x3A, 0, addr_zpg,   NULL},
     {"???", 0x3B, 0, addr_zpg,   NULL},
     {"???", 0x3C, 0, addr_zpg,   NULL},
-    {"???", 0x3D, 0, addr_zpg,   NULL},
+    {"AND", 0x3D, 4, addr_abs_x, op_and},
     {"???", 0x3E, 0, addr_zpg,   NULL},
     {"???", 0x3F, 0, addr_zpg,   NULL},
 
