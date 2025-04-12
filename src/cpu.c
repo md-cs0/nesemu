@@ -18,6 +18,26 @@
 #define RESET_VECTOR    0xFFFC
 #define IRQ_VECTOR      0xFFFE
 
+// Forward-declare the addressing functions.
+static bool addr_impl(struct cpu* cpu);
+static bool addr_a(struct cpu* cpu);
+static bool addr_imm(struct cpu* cpu);
+static bool addr_abs(struct cpu* cpu);
+static bool addr_abs_x(struct cpu* cpu);
+static bool addr_abs_y(struct cpu* cpu);
+static bool addr_zpg(struct cpu* cpu);
+static bool addr_zpg_x(struct cpu* cpu);
+static bool addr_zpg_y(struct cpu* cpu);
+static bool addr_ind(struct cpu* cpu);
+static bool addr_x_ind(struct cpu* cpu);
+static bool addr_ind_y(struct cpu* cpu);
+static bool addr_rel(struct cpu* cpu);
+
+// Forward-declare the opcode functions.
+static bool op_adc(struct cpu* cpu);
+static bool op_and(struct cpu* cpu);
+static bool op_asl(struct cpu* cpu);
+
 // 6502 processor status flags.
 enum status_flags
 {
@@ -30,194 +50,6 @@ enum status_flags
     CPUFLAG_N       = (1 << 7)  // Negative
 };
 
-// Implied: do nothing.
-static bool addr_impl(struct cpu* cpu)
-{
-    return 0;
-}
-
-// Accumulator: the accumulator value is used as the data fetched. This does nothing as
-// well and exists for semantics only.
-static bool addr_a(struct cpu* cpu)
-{
-    return 0;
-}
-
-// Immediate: fetch the value after the opcode.
-static bool addr_imm(struct cpu* cpu)
-{
-    cpu->addr_fetched = cpu->pc++;
-    return 0;
-}
-
-// Absolute: fetch the value from address.
-static bool addr_abs(struct cpu* cpu)
-{
-    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
-    cpu->addr_fetched = lo | (hi << 8);
-    return 0;
-}
-
-
-// Absolute X-indexed: fetch the value from address + Y.
-static bool addr_abs_x(struct cpu* cpu)
-{
-    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
-    uint16_t addr = lo | (hi << 8);
-    cpu->addr_fetched = addr + cpu->x;
-    return ((addr & 0xFF) + cpu->x) > 0xFF;
-}
-
-// Absolute Y-indexed: fetch the value from address + X.
-static bool addr_abs_y(struct cpu* cpu)
-{
-    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
-    uint16_t addr = lo | (hi << 8);
-    cpu->addr_fetched = addr + cpu->x;
-    return ((addr & 0xFF) + cpu->x) > 0xFF;
-}
-
-// Zero page: fetch the value from address & 0xFF.
-static bool addr_zpg(struct cpu* cpu)
-{
-    cpu->addr_fetched = nes_read(cpu->computer, cpu->pc++);
-    return 0;
-}
-
-// Zero page X-indexed: fetch the value from (address + X) & 0xFF.
-static bool addr_zpg_x(struct cpu* cpu)
-{
-    cpu->addr_fetched = (nes_read(cpu->computer, cpu->pc++) + cpu->x) & 0xFF;
-    return 0;
-}
-
-// Zero page Y-indexed: fetch the value from (address + Y) & 0xFF.
-static bool addr_zpg_y(struct cpu* cpu)
-{
-    cpu->addr_fetched = (nes_read(cpu->computer, cpu->pc++) + cpu->y) & 0xFF;
-    return 0;
-}
-
-// Indirect: fetch the value from *ptr, or in theory it would.
-// In reality, due to a bug with the NMOS 6502 where the pointer is
-// $xxFF, the address at pointer $xxFF is read as *($xxFF) | *($xx00) << 8,
-// not *($xxFF) | *($xxFF + 1) << 8.
-static bool addr_ind(struct cpu* cpu)
-{
-    // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
-
-    // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr_lo | (ptr_hi << 8));
-    uint16_t hi = nes_read(cpu->computer, ((ptr_lo + 1) & 0xFF) | (ptr_hi << 8));
-    cpu->addr_fetched = lo | (hi << 8);
-    return 0;
-}
-
-// X-indexed indirect: fetch the value from *(ptr + X).
-static bool addr_x_ind(struct cpu* cpu)
-{
-    // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
-    uint16_t ptr = ptr_lo | (ptr_hi << 8) + cpu->x;
-
-    // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr);
-    uint16_t hi = nes_read(cpu->computer, ptr + 1);
-    cpu->addr_fetched = lo | (hi << 8);
-    return 0;
-}
-
-// Indirect Y-indexed: fetch the value from *ptr + Y.
-static bool addr_ind_y(struct cpu* cpu)
-{
-    // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
-    uint16_t ptr = ptr_lo | (ptr_hi << 8);
-
-    // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr);
-    uint16_t hi = nes_read(cpu->computer, ptr + 1);
-    uint16_t addr = lo | (hi << 8);
-    cpu->addr_fetched = addr + cpu->y;
-    return ((addr & 0xFF) + cpu->y) > 0xFF;
-}
-
-// Relative: fetch the value from PC + signed imm8.
-static bool addr_rel(struct cpu* cpu)
-{
-    int8_t imm8 = nes_read(cpu->computer, cpu->pc++);
-    cpu->addr_fetched = cpu->pc + imm8;
-    return ((cpu->pc & 0xFF) + imm8) > 0xFF;
-}
-
-// Set a CPU flag.
-static inline void cpu_setflag(struct cpu* cpu, enum status_flags flag, bool toggle)
-{
-    if (toggle)
-        cpu->p |= flag;
-    else
-        cpu->p &= ~flag;
-}
-
-// Get a CPU flag.
-static inline bool cpu_getflag(struct cpu* cpu, enum status_flags flag)
-{
-    return !!(cpu->p & flag);
-}
-
-// Push a byte onto the stack.
-static inline void cpu_push(struct cpu* cpu, uint8_t byte)
-{
-    nes_write(cpu->computer, 0x100 | (cpu->s--), byte);
-}
-
-// Pop a byte off the stack.
-static inline uint8_t cpu_pop(struct cpu* cpu)
-{
-    return nes_read(cpu->computer, 0x100 | (cpu->s++));
-}
-
-// ADC: add with carry (may take extra cycle if page crossed).
-static bool op_adc(struct cpu* cpu)
-{
-    // Calculate the new accumulator value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
-
-    // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_C, result > 0xFF);
-    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
-    cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
-    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
-
-    // Set the new accumulator value.
-    cpu->a = result;
-    return true;
-}
-
-// AND: bitwise AND (may take extra cycle if page crossed).
-static bool op_and(struct cpu* cpu)
-{
-    // Calculate the new accumulator value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->a & memory;
-
-    // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
-    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
-
-    // Set the new accumulator value.
-    cpu->a = result;
-    return true;
-}
-
 // 6502 opcode struct.
 struct opcode
 {
@@ -229,7 +61,7 @@ struct opcode
 };
 
 // 6502 opcode table.
-struct opcode op_lookup[] = 
+static struct opcode op_lookup[] = 
 {
     // 0x00 - 0x0F
     {"???", 0x00, 0, addr_zpg,   NULL},
@@ -238,15 +70,15 @@ struct opcode op_lookup[] =
     {"???", 0x03, 0, addr_zpg,   NULL},
     {"???", 0x04, 0, addr_zpg,   NULL},
     {"???", 0x05, 0, addr_zpg,   NULL},
-    {"???", 0x06, 0, addr_zpg,   NULL},
+    {"ASL", 0x06, 5, addr_zpg,   op_asl},
     {"???", 0x07, 0, addr_zpg,   NULL},
     {"???", 0x08, 0, addr_zpg,   NULL},
     {"???", 0x09, 0, addr_zpg,   NULL},
-    {"???", 0x0A, 0, addr_zpg,   NULL},
+    {"ASL", 0x0A, 2, addr_a,     op_asl},
     {"???", 0x0B, 0, addr_zpg,   NULL},
     {"???", 0x0C, 0, addr_zpg,   NULL},
     {"???", 0x0D, 0, addr_zpg,   NULL},
-    {"???", 0x0E, 0, addr_zpg,   NULL},
+    {"ASL", 0x0E, 6, addr_abs,   op_asl},
     {"???", 0x0F, 0, addr_zpg,   NULL},
 
     // 0x10 - 0x1F
@@ -256,7 +88,7 @@ struct opcode op_lookup[] =
     {"???", 0x13, 0, addr_zpg,   NULL},
     {"???", 0x14, 0, addr_zpg,   NULL},
     {"???", 0x15, 0, addr_zpg,   NULL},
-    {"???", 0x16, 0, addr_zpg,   NULL},
+    {"ASL", 0x16, 6, addr_zpg_x, op_asl},
     {"???", 0x17, 0, addr_zpg,   NULL},
     {"???", 0x18, 0, addr_zpg,   NULL},
     {"???", 0x19, 0, addr_zpg,   NULL},
@@ -264,7 +96,7 @@ struct opcode op_lookup[] =
     {"???", 0x1B, 0, addr_zpg,   NULL},
     {"???", 0x1C, 0, addr_zpg,   NULL},
     {"???", 0x1D, 0, addr_zpg,   NULL},
-    {"???", 0x1E, 0, addr_zpg,   NULL},
+    {"ASL", 0x1E, 7, addr_abs_x, op_asl},
     {"???", 0x1F, 0, addr_zpg,   NULL},
 
     // 0x20 - 0x2F
@@ -519,6 +351,214 @@ struct opcode op_lookup[] =
     {"???", 0xFE, 0, addr_zpg,   NULL},
     {"???", 0xFF, 0, addr_zpg,   NULL}
 };
+
+// Implied: do nothing.
+static bool addr_impl(struct cpu* cpu)
+{
+    return 0;
+}
+
+// Accumulator: the accumulator value is used as the data fetched. This does nothing as
+// well and exists for semantics only.
+static bool addr_a(struct cpu* cpu)
+{
+    return 0;
+}
+
+// Immediate: fetch the value after the opcode.
+static bool addr_imm(struct cpu* cpu)
+{
+    cpu->addr_fetched = cpu->pc++;
+    return 0;
+}
+
+// Absolute: fetch the value from address.
+static bool addr_abs(struct cpu* cpu)
+{
+    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
+    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
+    cpu->addr_fetched = lo | (hi << 8);
+    return 0;
+}
+
+
+// Absolute X-indexed: fetch the value from address + Y.
+static bool addr_abs_x(struct cpu* cpu)
+{
+    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
+    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
+    uint16_t addr = lo | (hi << 8);
+    cpu->addr_fetched = addr + cpu->x;
+    return ((addr & 0xFF) + cpu->x) > 0xFF;
+}
+
+// Absolute Y-indexed: fetch the value from address + X.
+static bool addr_abs_y(struct cpu* cpu)
+{
+    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
+    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
+    uint16_t addr = lo | (hi << 8);
+    cpu->addr_fetched = addr + cpu->x;
+    return ((addr & 0xFF) + cpu->x) > 0xFF;
+}
+
+// Zero page: fetch the value from address & 0xFF.
+static bool addr_zpg(struct cpu* cpu)
+{
+    cpu->addr_fetched = nes_read(cpu->computer, cpu->pc++);
+    return 0;
+}
+
+// Zero page X-indexed: fetch the value from (address + X) & 0xFF.
+static bool addr_zpg_x(struct cpu* cpu)
+{
+    cpu->addr_fetched = (nes_read(cpu->computer, cpu->pc++) + cpu->x) & 0xFF;
+    return 0;
+}
+
+// Zero page Y-indexed: fetch the value from (address + Y) & 0xFF.
+static bool addr_zpg_y(struct cpu* cpu)
+{
+    cpu->addr_fetched = (nes_read(cpu->computer, cpu->pc++) + cpu->y) & 0xFF;
+    return 0;
+}
+
+// Indirect: fetch the value from *ptr, or in theory it would.
+// In reality, due to a bug with the NMOS 6502 where the pointer is
+// $xxFF, the address at pointer $xxFF is read as *($xxFF) | *($xx00) << 8,
+// not *($xxFF) | *($xxFF + 1) << 8.
+static bool addr_ind(struct cpu* cpu)
+{
+    // Read the pointer.
+    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
+
+    // Get the address at the pointer.
+    uint8_t lo = nes_read(cpu->computer, ptr_lo | (ptr_hi << 8));
+    uint16_t hi = nes_read(cpu->computer, ((ptr_lo + 1) & 0xFF) | (ptr_hi << 8));
+    cpu->addr_fetched = lo | (hi << 8);
+    return 0;
+}
+
+// X-indexed indirect: fetch the value from *(ptr + X).
+static bool addr_x_ind(struct cpu* cpu)
+{
+    // Read the pointer.
+    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
+    uint16_t ptr = ptr_lo | (ptr_hi << 8) + cpu->x;
+
+    // Get the address at the pointer.
+    uint8_t lo = nes_read(cpu->computer, ptr);
+    uint16_t hi = nes_read(cpu->computer, ptr + 1);
+    cpu->addr_fetched = lo | (hi << 8);
+    return 0;
+}
+
+// Indirect Y-indexed: fetch the value from *ptr + Y.
+static bool addr_ind_y(struct cpu* cpu)
+{
+    // Read the pointer.
+    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
+    uint16_t ptr = ptr_lo | (ptr_hi << 8);
+
+    // Get the address at the pointer.
+    uint8_t lo = nes_read(cpu->computer, ptr);
+    uint16_t hi = nes_read(cpu->computer, ptr + 1);
+    uint16_t addr = lo | (hi << 8);
+    cpu->addr_fetched = addr + cpu->y;
+    return ((addr & 0xFF) + cpu->y) > 0xFF;
+}
+
+// Relative: fetch the value from PC + signed imm8.
+static bool addr_rel(struct cpu* cpu)
+{
+    int8_t imm8 = nes_read(cpu->computer, cpu->pc++);
+    cpu->addr_fetched = cpu->pc + imm8;
+    return ((cpu->pc & 0xFF) + imm8) > 0xFF;
+}
+
+// Set a CPU flag.
+static inline void cpu_setflag(struct cpu* cpu, enum status_flags flag, bool toggle)
+{
+    if (toggle)
+        cpu->p |= flag;
+    else
+        cpu->p &= ~flag;
+}
+
+// Get a CPU flag.
+static inline bool cpu_getflag(struct cpu* cpu, enum status_flags flag)
+{
+    return !!(cpu->p & flag);
+}
+
+// Push a byte onto the stack.
+static inline void cpu_push(struct cpu* cpu, uint8_t byte)
+{
+    nes_write(cpu->computer, 0x100 | (cpu->s--), byte);
+}
+
+// Pop a byte off the stack.
+static inline uint8_t cpu_pop(struct cpu* cpu)
+{
+    return nes_read(cpu->computer, 0x100 | (cpu->s++));
+}
+
+// ADC: add with carry (may take extra cycle if page crossed).
+static bool op_adc(struct cpu* cpu)
+{
+    // Calculate the new accumulator value.
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_C, result > 0xFF);
+    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new accumulator value.
+    cpu->a = result;
+    return true;
+}
+
+// AND: bitwise AND (may take extra cycle if page crossed).
+static bool op_and(struct cpu* cpu)
+{
+    // Calculate the new accumulator value.
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint16_t result = cpu->a & memory;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new accumulator value.
+    cpu->a = result;
+    return true;
+}
+
+// ASL: arithmetic shift left.
+static bool op_asl(struct cpu* cpu)
+{
+    // Calculate the new value.
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint16_t result = memory << 1;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_C, memory & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new value in the given memory location.
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        cpu->a = result;
+    else
+        nes_write(cpu->computer, cpu->addr_fetched, result);
+    return false;
+}
 
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
 // software BRK, the PC/processor status write sequences are still present, meaning
