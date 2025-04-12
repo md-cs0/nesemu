@@ -45,6 +45,7 @@ static bool op_bmi(struct cpu* cpu);
 static bool op_bne(struct cpu* cpu);
 static bool op_bpl(struct cpu* cpu);
 static bool op_brk(struct cpu* cpu);
+static bool op_bvc(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -162,7 +163,7 @@ static struct opcode op_lookup[] =
     {"???", 0x4F, 0, addr_zpg,   NULL},
 
     // 0x50 - 0x5F
-    {"???", 0x50, 0, addr_zpg,   NULL},
+    {"BVC", 0x50, 2, addr_rel,   op_bvc},
     {"???", 0x51, 0, addr_zpg,   NULL},
     {"???", 0x52, 0, addr_zpg,   NULL},
     {"???", 0x53, 0, addr_zpg,   NULL},
@@ -690,6 +691,20 @@ static bool op_brk(struct cpu* cpu)
 
     // Return.
     return false;
+}
+
+// BPL: branch if overflow clear (will take extra cycle if branch taken, may take
+// another extra cycle if page crossed).
+static bool op_bvc(struct cpu* cpu)
+{
+    // If the overflow flag is set, continue.
+    if (cpu_getflag(cpu, CPUFLAG_V))
+        return false;
+
+    // Take the branch.
+    cpu->cycles++;
+    cpu->pc = cpu->addr_fetched;
+    return true;
 }
 
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
