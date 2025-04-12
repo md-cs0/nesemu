@@ -59,6 +59,9 @@ static bool op_dec(struct cpu* cpu);
 static bool op_dex(struct cpu* cpu);
 static bool op_dey(struct cpu* cpu);
 static bool op_eor(struct cpu* cpu);
+static bool op_inc(struct cpu* cpu);
+static bool op_inx(struct cpu* cpu);
+static bool op_iny(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -309,7 +312,7 @@ static struct opcode op_lookup[] =
     {"CMP", 3, addr_zpg,   op_cmp},
     {"DEC", 5, addr_zpg,   op_dec},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"INY", 2, addr_impl,  op_iny},
     {"CMP", 2, addr_imm,   op_cmp},
     {"DEX", 2, addr_impl,  op_dex},
     {"???", 0, addr_zpg,   NULL},
@@ -343,15 +346,15 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"CPX", 3, addr_zpg,   op_cpx},
     {"???", 0, addr_zpg,   NULL},
+    {"INC", 5, addr_zpg,   op_inc},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"INX", 2, addr_impl,  op_inx},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"CPX", 4, addr_abs,   op_cpx},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"INC", 6, addr_abs,   op_inc},
     {"???", 0, addr_zpg,   NULL},
 
     // 0xF0 - 0xFF
@@ -361,6 +364,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
+    {"INC", 6, addr_zpg_x, op_inc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -368,8 +372,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"INC", 7, addr_abs_x, op_inc},
     {"???", 0, addr_zpg,   NULL}
 };
 
@@ -577,7 +580,14 @@ static bool op_asl(struct cpu* cpu)
     if (op_lookup[cpu->opcode].addr_mode == addr_a)
         cpu->a = result;
     else
+    {
+        // This looks strange, but the 6502 tends to write the original value
+        // back to memory before the modified value. This distinction does
+        // actually matter, because writing to addresses that are used by
+        // other hardware registers can trigger specific functions.
+        nes_write(cpu->computer, cpu->addr_fetched, memory);
         nes_write(cpu->computer, cpu->addr_fetched, result);
+    }
     return false;
 }
 
@@ -815,13 +825,15 @@ static bool op_cpy(struct cpu* cpu)
 static bool op_dec(struct cpu* cpu)
 {
     // Calculate the new value.
-    uint8_t result = nes_read(cpu->computer, cpu->addr_fetched) - 1;
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t result = memory - 1;
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, result == 0);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new value in the given memory location.
+    nes_write(cpu->computer, cpu->addr_fetched, memory);
     nes_write(cpu->computer, cpu->addr_fetched, result);
     return false;
 }
@@ -869,6 +881,51 @@ static bool op_eor(struct cpu* cpu)
     // Set the new accumulator value.
     cpu->a = result;
     return true;
+}
+
+// INC - increment memory.
+static bool op_inc(struct cpu* cpu)
+{
+    // Calculate the new value.
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t result = memory + 1;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new value in the given memory location.
+    nes_write(cpu->computer, cpu->addr_fetched, memory);
+    nes_write(cpu->computer, cpu->addr_fetched, result);
+    return false;
+}
+
+// INX - increment X.
+static bool op_inx(struct cpu* cpu)
+{
+    // Calculate the new X value.
+    cpu->x++;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+
+    // Return.
+    return false;
+}
+
+// INY - increment Y.
+static bool op_iny(struct cpu* cpu)
+{
+    // Calculate the new Y value.
+    cpu->y++;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+
+    // Return.
+    return false;
 }
 
 // Trigger an IRQ (low level-sensitive).
@@ -953,6 +1010,7 @@ void cpu_clock(struct cpu* cpu)
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.
     cpu->opcode = nes_read(cpu->computer, cpu->pc++);
+    assert(op_lookup[cpu->opcode].cycles);
     cpu->cycles = op_lookup[cpu->opcode].cycles - 1;
 
     // Read the appropriate address before executing the opcode itself. Depending
