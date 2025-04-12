@@ -42,6 +42,7 @@ static bool op_bcs(struct cpu* cpu);
 static bool op_beq(struct cpu* cpu);
 static bool op_bit(struct cpu* cpu);
 static bool op_bmi(struct cpu* cpu);
+static bool op_bne(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -303,7 +304,7 @@ static struct opcode op_lookup[] =
     {"???", 0xCF, 0, addr_zpg,   NULL},
 
     // 0xD0 - 0xDF
-    {"???", 0xD0, 0, addr_zpg,   NULL},
+    {"BNE", 0xD0, 2, addr_rel,   op_bne},
     {"???", 0xD1, 0, addr_zpg,   NULL},
     {"???", 0xD2, 0, addr_zpg,   NULL},
     {"???", 0xD3, 0, addr_zpg,   NULL},
@@ -629,6 +630,20 @@ static bool op_bmi(struct cpu* cpu)
 {
     // If the negative flag is not set, continue.
     if (!cpu_getflag(cpu, CPUFLAG_N))
+        return false;
+
+    // Take the branch.
+    cpu->cycles++;
+    cpu->pc = cpu->addr_fetched;
+    return true;
+}
+
+// BNE: branch if not equal (will take extra cycle if branch taken, may take
+// another extra cycle if page crossed).
+static bool op_bne(struct cpu* cpu)
+{
+    // If the zero flag is set, continue.
+    if (cpu_getflag(cpu, CPUFLAG_Z))
         return false;
 
     // Take the branch.
