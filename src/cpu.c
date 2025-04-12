@@ -39,6 +39,7 @@ static bool op_and(struct cpu* cpu);
 static bool op_asl(struct cpu* cpu);
 static bool op_bcc(struct cpu* cpu);
 static bool op_bcs(struct cpu* cpu);
+static bool op_beq(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -336,7 +337,7 @@ static struct opcode op_lookup[] =
     {"???", 0xEF, 0, addr_zpg,   NULL},
 
     // 0xF0 - 0xFF
-    {"???", 0xF0, 0, addr_zpg,   NULL},
+    {"BEQ", 0xF0, 0, addr_rel,   op_beq},
     {"???", 0xF1, 0, addr_zpg,   NULL},
     {"???", 0xF2, 0, addr_zpg,   NULL},
     {"???", 0xF3, 0, addr_zpg,   NULL},
@@ -580,8 +581,22 @@ static bool op_bcc(struct cpu* cpu)
 // another extra cycle if page crossed).
 static bool op_bcs(struct cpu* cpu)
 {
-    // If the carry flag is set, continue.
+    // If the carry flag is not set, continue.
     if (!cpu_getflag(cpu, CPUFLAG_C))
+        return false;
+
+    // Take the branch.
+    cpu->cycles++;
+    cpu->pc = cpu->addr_fetched;
+    return true;
+}
+
+// BEQ: branch if equal (will take extra cycle if branch taken, may take
+// another extra cycle if page crossed).
+static bool op_beq(struct cpu* cpu)
+{
+    // If the carry flag is not zero, continue.
+    if (!cpu_getflag(cpu, CPUFLAG_Z))
         return false;
 
     // Take the branch.
