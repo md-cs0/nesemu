@@ -40,6 +40,7 @@ static bool op_asl(struct cpu* cpu);
 static bool op_bcc(struct cpu* cpu);
 static bool op_bcs(struct cpu* cpu);
 static bool op_beq(struct cpu* cpu);
+static bool op_bit(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -107,7 +108,7 @@ static struct opcode op_lookup[] =
     {"AND", 0x21, 6, addr_x_ind, op_and},
     {"???", 0x22, 0, addr_zpg,   NULL},
     {"???", 0x23, 0, addr_zpg,   NULL},
-    {"???", 0x24, 0, addr_zpg,   NULL},
+    {"BIT", 0x24, 3, addr_zpg,   op_bit},
     {"AND", 0x25, 3, addr_zpg,   op_and},
     {"???", 0x26, 0, addr_zpg,   NULL},
     {"???", 0x27, 0, addr_zpg,   NULL},
@@ -115,7 +116,7 @@ static struct opcode op_lookup[] =
     {"AND", 0x29, 2, addr_imm,   op_and},
     {"???", 0x2A, 0, addr_zpg,   NULL},
     {"???", 0x2B, 0, addr_zpg,   NULL},
-    {"???", 0x2C, 0, addr_zpg,   NULL},
+    {"BIT", 0x2C, 0, addr_abs,   op_bit},
     {"AND", 0x2D, 4, addr_abs,   op_and},
     {"???", 0x2E, 0, addr_zpg,   NULL},
     {"???", 0x2F, 0, addr_zpg,   NULL},
@@ -337,7 +338,7 @@ static struct opcode op_lookup[] =
     {"???", 0xEF, 0, addr_zpg,   NULL},
 
     // 0xF0 - 0xFF
-    {"BEQ", 0xF0, 0, addr_rel,   op_beq},
+    {"BEQ", 0xF0, 2, addr_rel,   op_beq},
     {"???", 0xF1, 0, addr_zpg,   NULL},
     {"???", 0xF2, 0, addr_zpg,   NULL},
     {"???", 0xF3, 0, addr_zpg,   NULL},
@@ -605,6 +606,22 @@ static bool op_beq(struct cpu* cpu)
     return true;
 }
 
+// BIT: bit test.
+static bool op_bit(struct cpu* cpu)
+{
+    // Get the result of accumulator & memory.
+    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint16_t result = cpu->a & memory;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_V, result & 0x40);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Return.
+    return false;
+}
+
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
 // software BRK, the PC/processor status write sequences are still present, meaning
 // the stack pointer still decrements by 3. However, the R/W line is held high,
@@ -683,6 +700,7 @@ void cpu_clock(struct cpu* cpu)
     // byte must be re-fetched with the carry added.
     bool page_crossed = op_lookup[cpu->opcode].addr_mode(cpu);
     cpu->cycles += (page_crossed & op_lookup[cpu->opcode].op(cpu));
+    assert(cpu->cycles > 6);
 }
 
 // Create a new CPU instance. The CPU must be reset before used.
