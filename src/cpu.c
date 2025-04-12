@@ -37,6 +37,7 @@ static bool addr_rel(struct cpu* cpu);
 static bool op_adc(struct cpu* cpu);
 static bool op_and(struct cpu* cpu);
 static bool op_asl(struct cpu* cpu);
+static bool op_bcc(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -226,7 +227,7 @@ static struct opcode op_lookup[] =
     {"???", 0x8F, 0, addr_zpg,   NULL},
 
     // 0x90 - 0x9F
-    {"???", 0x90, 0, addr_zpg,   NULL},
+    {"BCC", 0x90, 2, addr_rel,   op_bcc},
     {"???", 0x91, 0, addr_zpg,   NULL},
     {"???", 0x92, 0, addr_zpg,   NULL},
     {"???", 0x93, 0, addr_zpg,   NULL},
@@ -558,6 +559,20 @@ static bool op_asl(struct cpu* cpu)
     else
         nes_write(cpu->computer, cpu->addr_fetched, result);
     return false;
+}
+
+// BCC: branch if carry clear (may take extra cycle if page crossed and if branch
+// taken).
+static bool op_bcc(struct cpu* cpu)
+{
+    // If the carry flag is set, continue.
+    if (cpu_getflag(cpu, CPUFLAG_C))
+        return false;
+
+    // Take the branch.
+    cpu->cycles++;
+    cpu->pc = cpu->addr_fetched;
+    return true;
 }
 
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
