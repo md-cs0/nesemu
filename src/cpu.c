@@ -55,6 +55,9 @@ static bool op_clv(struct cpu* cpu);
 static bool op_cmp(struct cpu* cpu);
 static bool op_cpx(struct cpu* cpu);
 static bool op_cpy(struct cpu* cpu);
+static bool op_dec(struct cpu* cpu);
+static bool op_dex(struct cpu* cpu);
+static bool op_dey(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -233,7 +236,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"DEY", 2, addr_impl,  op_dey},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -303,15 +306,15 @@ static struct opcode op_lookup[] =
     {"CPY", 3, addr_zpg,   op_cpy},
     {"???", 0, addr_zpg,   NULL},
     {"CMP", 3, addr_zpg,   op_cmp},
-    {"???", 0, addr_zpg,   NULL},
+    {"DEC", 5, addr_zpg,   op_dec},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"CMP", 2, addr_imm,   op_cmp},
-    {"???", 0, addr_zpg,   NULL},
+    {"DEX", 2, addr_impl,  op_dex},
     {"???", 0, addr_zpg,   NULL},
     {"CPY", 4, addr_abs,   op_cpy},
     {"CMP", 4, addr_abs,   op_cmp},
-    {"???", 0, addr_zpg,   NULL},
+    {"DEC", 6, addr_abs,   op_dec},
     {"???", 0, addr_zpg,   NULL},
 
     // 0xD0 - 0xDF
@@ -321,7 +324,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"CMP", 4, addr_zpg_x, op_cmp},
-    {"???", 0, addr_zpg,   NULL},
+    {"DEC", 6, addr_zpg_x, op_dec},
     {"???", 0, addr_zpg,   NULL},
     {"CLD", 2, addr_impl,  op_cld},
     {"CMP", 4, addr_zpg_y, op_cmp},
@@ -329,7 +332,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"CMP", 4, addr_abs_x, op_cmp},
-    {"???", 0, addr_zpg,   NULL},
+    {"DEC", 7, addr_abs_x, op_dec},
     {"???", 0, addr_zpg,   NULL},
 
     // 0xE0 - 0xEF
@@ -802,6 +805,49 @@ static bool op_cpy(struct cpu* cpu)
     cpu_setflag(cpu, CPUFLAG_C, cpu->y >= memory);
     cpu_setflag(cpu, CPUFLAG_Z, cpu->y == memory);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Return.
+    return false;
+}
+
+// DEC - decrement memory.
+static bool op_dec(struct cpu* cpu)
+{
+    // Calculate the new value.
+    uint8_t result = nes_read(cpu->computer, cpu->addr_fetched) - 1;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new value in the given memory location.
+    nes_write(cpu->computer, cpu->addr_fetched, result);
+    return false;
+}
+
+// DEX - decrement X.
+static bool op_dex(struct cpu* cpu)
+{
+    // Calculate the new X value.
+    cpu->x--;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+
+    // Return.
+    return false;
+}
+
+// DEY - decrement Y.
+static bool op_dey(struct cpu* cpu)
+{
+    // Calculate the new Y value.
+    cpu->y--;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
 
     // Return.
     return false;
