@@ -64,6 +64,9 @@ static bool op_inx(struct cpu* cpu);
 static bool op_iny(struct cpu* cpu);
 static bool op_jmp(struct cpu* cpu);
 static bool op_jsr(struct cpu* cpu);
+static bool op_lda(struct cpu* cpu);
+static bool op_ldx(struct cpu* cpu);
+static bool op_ldy(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -270,39 +273,39 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
 
     // 0xA0 - 0xAF
+    {"LDY", 2, addr_imm,   op_ldy},
+    {"LDA", 6, addr_x_ind, op_lda},
+    {"LDX", 2, addr_imm,   op_ldx},
+    {"???", 0, addr_zpg,   NULL},
+    {"LDY", 3, addr_zpg,   op_ldy},
+    {"LDA", 3, addr_zpg,   op_lda},
+    {"LDX", 3, addr_zpg,   op_ldx},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
+    {"LDA", 2, addr_imm,   op_lda},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"LDY", 4, addr_abs,   op_ldy},
+    {"LDA", 4, addr_abs,   op_lda},
+    {"LDX", 4, addr_abs,   op_ldx},
     {"???", 0, addr_zpg,   NULL},
 
     // 0xB0 - 0xBF
     {"BCS", 2, addr_rel,   op_bcs},
+    {"LDA", 5, addr_ind_y, op_lda},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"LDY", 4, addr_zpg_x, op_ldy},
+    {"LDA", 4, addr_zpg_x, op_lda},
+    {"LDX", 4, addr_zpg_y, op_ldx},
     {"???", 0, addr_zpg,   NULL},
     {"CLV", 2, addr_impl,  op_clv},
+    {"LDA", 4, addr_abs_y, op_lda},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"LDY", 4, addr_abs_x, op_ldy},
+    {"LDA", 4, addr_abs_x, op_lda},
+    {"LDX", 4, addr_abs_y, op_ldx},
     {"???", 0, addr_zpg,   NULL},
 
     // 0xC0 - 0xCF
@@ -945,6 +948,51 @@ static bool op_jsr(struct cpu* cpu)
     cpu_push(cpu, (cpu->pc - 1));
     cpu->pc = cpu->addr_fetched;
     return false;
+}
+
+// LDA - load a memory value into the accumulator (may take extra 
+// cycle if page crossed).
+static bool op_lda(struct cpu* cpu)
+{
+    // Load the memory value into the accumulator.
+    cpu->a = nes_read(cpu->computer, cpu->addr_fetched);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
+
+    // Return.
+    return true;
+}
+
+// LDX - load a memory value into the X register (may take extra 
+// cycle if page crossed).
+static bool op_ldx(struct cpu* cpu)
+{
+    // Load the memory value into the accumulator.
+    cpu->x = nes_read(cpu->computer, cpu->addr_fetched);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->x & 0x80);
+
+    // Return.
+    return true;
+}
+
+// LDY - load a memory value into the Y register (may take extra 
+// cycle if page crossed).
+static bool op_ldy(struct cpu* cpu)
+{
+    // Load the memory value into the accumulator.
+    cpu->y = nes_read(cpu->computer, cpu->addr_fetched);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+
+    // Return.
+    return true;
 }
 
 // Trigger an IRQ (low level-sensitive).
