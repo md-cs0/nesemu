@@ -41,6 +41,7 @@ static bool op_bcc(struct cpu* cpu);
 static bool op_bcs(struct cpu* cpu);
 static bool op_beq(struct cpu* cpu);
 static bool op_bit(struct cpu* cpu);
+static bool op_bmi(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -122,7 +123,7 @@ static struct opcode op_lookup[] =
     {"???", 0x2F, 0, addr_zpg,   NULL},
 
     // 0x30 - 0x3F
-    {"???", 0x30, 0, addr_zpg,   NULL},
+    {"BMI", 0x30, 2, addr_rel,   op_bmi},
     {"AND", 0x31, 5, addr_ind_y, op_and},
     {"???", 0x32, 0, addr_zpg,   NULL},
     {"???", 0x33, 0, addr_zpg,   NULL},
@@ -596,7 +597,7 @@ static bool op_bcs(struct cpu* cpu)
 // another extra cycle if page crossed).
 static bool op_beq(struct cpu* cpu)
 {
-    // If the carry flag is not zero, continue.
+    // If the zero flag is not set, continue.
     if (!cpu_getflag(cpu, CPUFLAG_Z))
         return false;
 
@@ -620,6 +621,20 @@ static bool op_bit(struct cpu* cpu)
 
     // Return.
     return false;
+}
+
+// BMI: branch if minus (will take extra cycle if branch taken, may take
+// another extra cycle if page crossed).
+static bool op_bmi(struct cpu* cpu)
+{
+    // If the negative flag is not set, continue.
+    if (!cpu_getflag(cpu, CPUFLAG_N))
+        return false;
+
+    // Take the branch.
+    cpu->cycles++;
+    cpu->pc = cpu->addr_fetched;
+    return true;
 }
 
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
@@ -661,6 +676,10 @@ void cpu_nmi(struct cpu* cpu)
 // Trigger an IRQ (low level-sensitive).
 void cpu_irq(struct cpu* cpu)
 {
+    // If the IRQ disable flag is set, continue.
+    if (cpu_getflag(cpu, CPUFLAG_I))
+        return;
+
     // Push the PC and processor status.
     cpu_push(cpu, cpu->pc >> 8);
     cpu_push(cpu, cpu->pc);
