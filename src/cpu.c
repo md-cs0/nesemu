@@ -1,10 +1,10 @@
 /*
-; Ricoh 2A03 emulation (based on the 6502). It features the NES APU and excludes BCD support.
-; (Although APU emulation will be defined in a separate translation unit.)
+; Ricoh 2A03 emulation (based on the 6502). It features the NES APU and excludes BCD support
+; (although APU emulation will be defined in a separate translation unit).
 ;
 ; I should note that this emulation isn't aiming to be accurate. There's many discrepancies
-; that can be observed here, including the lack of T states, inaccurate interrupt timings,
-; instruction cycles aren't really separate to begin with, interrupt hijackings, etc.
+; that can be observed here, including the lack of T states, no interrupt hijackings,
+; instruction cycles aren't really separate to begin with, etc.
 */
 
 #include <stdint.h>
@@ -44,6 +44,7 @@ static bool op_bit(struct cpu* cpu);
 static bool op_bmi(struct cpu* cpu);
 static bool op_bne(struct cpu* cpu);
 static bool op_bpl(struct cpu* cpu);
+static bool op_brk(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -71,7 +72,7 @@ struct opcode
 static struct opcode op_lookup[] = 
 {
     // 0x00 - 0x0F
-    {"???", 0x00, 0, addr_zpg,   NULL},
+    {"BRK", 0x00, 7, addr_impl,  op_brk},
     {"???", 0x01, 0, addr_zpg,   NULL},
     {"???", 0x02, 0, addr_zpg,   NULL},
     {"???", 0x03, 0, addr_zpg,   NULL},
@@ -665,6 +666,30 @@ static bool op_bpl(struct cpu* cpu)
     cpu->cycles++;
     cpu->pc = cpu->addr_fetched;
     return true;
+}
+
+// BRK: break (software IRQ). This works the same as an IRQ, except the break
+// flag is pushed and the IRQ disable flag is ignored. Because PC + 2 (where 
+// PC = the address that the BRK instruction is located at) is pushed to the stack,
+// this is technically a 2-byte instruction. BRK suffers from interrupt hijacks,
+// however this is not emulated here.
+static bool op_brk(struct cpu* cpu)
+{
+    // Push the PC and processor status.
+    cpu_push(cpu, (cpu->pc++) >> 8);
+    cpu_push(cpu, cpu->pc);
+    cpu_push(cpu, cpu->p | 0b00010000); // The break flag is pushed.
+
+    // Fetch the new PC.
+    cpu->pc = IRQ_VECTOR;
+    addr_ind(cpu);
+    cpu->pc = cpu->addr_fetched;
+
+    // Toggle the IRQ disable flag.
+    cpu_setflag(cpu, CPUFLAG_I, true);
+
+    // Return.
+    return false;
 }
 
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
