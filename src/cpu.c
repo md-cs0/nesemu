@@ -46,6 +46,7 @@ static bool op_bne(struct cpu* cpu);
 static bool op_bpl(struct cpu* cpu);
 static bool op_brk(struct cpu* cpu);
 static bool op_bvc(struct cpu* cpu);
+static bool op_bvs(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -199,7 +200,7 @@ static struct opcode op_lookup[] =
     {"???", 0x6F, 0, addr_zpg,   NULL},
 
     // 0x70 - 0x7F
-    {"???", 0x70, 0, addr_zpg,   NULL},
+    {"BVS", 0x70, 2, addr_rel,   op_bvs},
     {"ADC", 0x71, 5, addr_ind_y, op_adc},
     {"???", 0x72, 0, addr_zpg,   NULL},
     {"???", 0x73, 0, addr_zpg,   NULL},
@@ -693,12 +694,26 @@ static bool op_brk(struct cpu* cpu)
     return false;
 }
 
-// BPL: branch if overflow clear (will take extra cycle if branch taken, may take
+// BVC: branch if overflow clear (will take extra cycle if branch taken, may take
 // another extra cycle if page crossed).
 static bool op_bvc(struct cpu* cpu)
 {
     // If the overflow flag is set, continue.
     if (cpu_getflag(cpu, CPUFLAG_V))
+        return false;
+
+    // Take the branch.
+    cpu->cycles++;
+    cpu->pc = cpu->addr_fetched;
+    return true;
+}
+
+// BVS: branch if overflow set (will take extra cycle if branch taken, may take
+// another extra cycle if page crossed).
+static bool op_bvs(struct cpu* cpu)
+{
+    // If the overflow flag is not set, continue.
+    if (!cpu_getflag(cpu, CPUFLAG_V))
         return false;
 
     // Take the branch.
