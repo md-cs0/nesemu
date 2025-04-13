@@ -119,290 +119,290 @@ static struct opcode op_lookup[] =
     // 0x00 - 0x0F
     {"BRK", 7, addr_impl,  op_brk},
     {"ORA", 6, addr_x_ind, op_ora},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ORA", 3, addr_zpg,   op_ora},
     {"ASL", 5, addr_zpg,   op_asl},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"PHP", 3, addr_impl,  op_php},
     {"ORA", 2, addr_imm,   op_ora},
     {"ASL", 2, addr_a,     op_asl},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ORA", 4, addr_abs,   op_ora},
     {"ASL", 6, addr_abs,   op_asl},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x10 - 0x1F
     {"BPL", 2, addr_rel,   op_bpl},
     {"ORA", 5, addr_ind_y, op_ora},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ORA", 4, addr_zpg_x, op_ora},
     {"ASL", 6, addr_zpg_x, op_asl},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CLC", 2, addr_impl,  op_clc},
     {"ORA", 4, addr_abs_y, op_ora},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ORA", 4, addr_abs_x, op_ora},
     {"ASL", 7, addr_abs_x, op_asl},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x20 - 0x2F
     {"JSR", 6, addr_abs,   op_jsr},
     {"AND", 6, addr_x_ind, op_and},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"BIT", 3, addr_zpg,   op_bit},
     {"AND", 3, addr_zpg,   op_and},
     {"ROL", 5, addr_zpg,   op_rol},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"PLP", 4, addr_impl,  op_plp},
     {"AND", 2, addr_imm,   op_and},
     {"ROL", 2, addr_a,     op_rol},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"BIT", 0, addr_abs,   op_bit},
     {"AND", 4, addr_abs,   op_and},
     {"ROL", 6, addr_abs,   op_rol},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x30 - 0x3F
     {"BMI", 2, addr_rel,   op_bmi},
     {"AND", 5, addr_ind_y, op_and},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"AND", 4, addr_zpg_x, op_and},
     {"ROL", 6, addr_zpg_x, op_rol},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"SEC", 2, addr_impl,  op_sec},
     {"AND", 4, addr_abs_y, op_and},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"AND", 4, addr_abs_x, op_and},
     {"ROL", 7, addr_abs_x, op_rol},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x40 - 0x4F
     {"RTI", 6, addr_impl,  op_rti},
     {"EOR", 6, addr_x_ind, op_eor},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"EOR", 3, addr_zpg,   op_eor},
     {"LSR", 5, addr_zpg,   op_lsr},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"PHA", 3, addr_impl,  op_pha},
     {"EOR", 2, addr_imm,   op_eor},
     {"LSR", 2, addr_a,     op_lsr},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"JMP", 3, addr_abs,   op_jmp},
     {"EOR", 4, addr_abs,   op_eor},
     {"LSR", 6, addr_abs,   op_lsr},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x50 - 0x5F
     {"BVC", 2, addr_rel,   op_bvc},
     {"EOR", 5, addr_ind_y, op_eor},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"EOR", 4, addr_zpg_x, op_eor},
     {"LSR", 6, addr_zpg_x, op_lsr},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CLI", 2, addr_impl,  op_cli},
     {"EOR", 4, addr_abs_y, op_eor},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"EOR", 4, addr_abs_x, op_eor},
     {"LSR", 7, addr_abs_x, op_lsr},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x60 - 0x6F
     {"RTS", 6, addr_impl,  op_rts},
     {"ADC", 6, addr_x_ind, op_adc},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ADC", 3, addr_zpg,   op_adc},
     {"ROR", 5, addr_zpg,   op_ror},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"PLA", 4, addr_impl,  op_pla},
     {"ADC", 2, addr_imm,   op_adc},
     {"ROR", 2, addr_a,     op_ror},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"JMP", 5, addr_ind,   op_jmp},
     {"ADC", 4, addr_abs,   op_adc},
     {"ROR", 6, addr_abs,   op_ror},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x70 - 0x7F
     {"BVS", 2, addr_rel,   op_bvs},
     {"ADC", 5, addr_ind_y, op_adc},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ADC", 4, addr_zpg_x, op_adc},
     {"ROR", 6, addr_zpg_x, op_ror},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"SEI", 2, addr_impl,  op_sei},
     {"ADC", 4, addr_abs_y, op_adc},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"ADC", 4, addr_abs_x, op_adc},
     {"ROR", 7, addr_abs_x, op_ror},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x80 - 0x8F
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"STA", 6, addr_x_ind, op_sta},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"STY", 3, addr_zpg,   op_sty},
     {"STA", 3, addr_zpg,   op_sta},
     {"STX", 3, addr_zpg,   op_stx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"DEY", 2, addr_impl,  op_dey},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"TXA", 2, addr_impl,  op_txa},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"STY", 4, addr_abs,   op_sty},
     {"STA", 4, addr_abs,   op_sta},
     {"STX", 4, addr_abs,   op_stx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0x90 - 0x9F
     {"BCC", 2, addr_rel,   op_bcc},
     {"STA", 6, addr_ind_y, op_sta},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"STY", 4, addr_zpg_x, op_sty},
     {"STA", 4, addr_zpg_x, op_sta},
     {"STX", 4, addr_zpg_y, op_stx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"TYA", 2, addr_impl,  op_tya},
     {"STA", 5, addr_abs_y, op_sta},
     {"TXS", 2, addr_impl,  op_txs},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"STA", 5, addr_abs_x, op_sta},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0xA0 - 0xAF
     {"LDY", 2, addr_imm,   op_ldy},
     {"LDA", 6, addr_x_ind, op_lda},
     {"LDX", 2, addr_imm,   op_ldx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"LDY", 3, addr_zpg,   op_ldy},
     {"LDA", 3, addr_zpg,   op_lda},
     {"LDX", 3, addr_zpg,   op_ldx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"TAY", 2, addr_impl,  op_tay},
     {"LDA", 2, addr_imm,   op_lda},
     {"TAX", 2, addr_impl,  op_tax},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"LDY", 4, addr_abs,   op_ldy},
     {"LDA", 4, addr_abs,   op_lda},
     {"LDX", 4, addr_abs,   op_ldx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0xB0 - 0xBF
     {"BCS", 2, addr_rel,   op_bcs},
     {"LDA", 5, addr_ind_y, op_lda},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"LDY", 4, addr_zpg_x, op_ldy},
     {"LDA", 4, addr_zpg_x, op_lda},
     {"LDX", 4, addr_zpg_y, op_ldx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CLV", 2, addr_impl,  op_clv},
     {"LDA", 4, addr_abs_y, op_lda},
     {"TSX", 2, addr_impl,  op_tsx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"LDY", 4, addr_abs_x, op_ldy},
     {"LDA", 4, addr_abs_x, op_lda},
     {"LDX", 4, addr_abs_y, op_ldx},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0xC0 - 0xCF
     {"CPY", 2, addr_imm,   op_cpy},
     {"CMP", 6, addr_x_ind, op_cmp},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CPY", 3, addr_zpg,   op_cpy},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CMP", 3, addr_zpg,   op_cmp},
     {"DEC", 5, addr_zpg,   op_dec},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"INY", 2, addr_impl,  op_iny},
     {"CMP", 2, addr_imm,   op_cmp},
     {"DEX", 2, addr_impl,  op_dex},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CPY", 4, addr_abs,   op_cpy},
     {"CMP", 4, addr_abs,   op_cmp},
     {"DEC", 6, addr_abs,   op_dec},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0xD0 - 0xDF
     {"BNE", 2, addr_rel,   op_bne},
     {"CMP", 5, addr_ind_y, op_cmp},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"CMP", 4, addr_zpg_x, op_cmp},
     {"DEC", 6, addr_zpg_x, op_dec},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CLD", 2, addr_impl,  op_cld},
     {"CMP", 4, addr_zpg_y, op_cmp},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"CMP", 4, addr_abs_x, op_cmp},
     {"DEC", 7, addr_abs_x, op_dec},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0xE0 - 0xEF
     {"CPX", 2, addr_imm,   op_cpx},
     {"SBC", 6, addr_x_ind, op_sbc},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"CPX", 3, addr_zpg,   op_cpx},
     {"SBC", 3, addr_zpg,   op_sbc},
     {"INC", 5, addr_zpg,   op_inc},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"INX", 2, addr_impl,  op_inx},
     {"SBC", 2, addr_imm,   op_sbc},
     {"NOP", 2, addr_impl,  op_nop},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"CPX", 4, addr_abs,   op_cpx},
     {"SBC", 4, addr_abs,   op_sbc},
     {"INC", 6, addr_abs,   op_inc},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
 
     // 0xF0 - 0xFF
     {"BEQ", 2, addr_rel,   op_beq},
     {"SBC", 5, addr_ind_y, op_sbc},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"SBC", 4, addr_zpg_x, op_sbc},
     {"INC", 6, addr_zpg_x, op_inc},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
     {"SED", 2, addr_impl,  op_sed},
     {"SBC", 4, addr_abs_y, op_sbc},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
+    {"???", 0, NULL,       NULL},
     {"SBC", 4, addr_abs_x, op_sbc},
     {"INC", 7, addr_abs_x, op_inc},
-    {"???", 0, addr_zpg,   NULL}
+    {"???", 0, NULL,       NULL}
 };
 
 // Implied: do nothing.
@@ -433,7 +433,6 @@ static bool addr_abs(struct cpu* cpu)
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
-
 
 // Absolute X-indexed: fetch the value from address + Y.
 static bool addr_abs_x(struct cpu* cpu)
@@ -488,7 +487,7 @@ static bool addr_ind(struct cpu* cpu)
 
     // Get the address at the pointer.
     uint8_t lo = nes_read(cpu->computer, ptr_lo | (ptr_hi << 8));
-    uint16_t hi = nes_read(cpu->computer, ((ptr_lo + 1) & 0xFF) | (ptr_hi << 8));
+    uint8_t hi = nes_read(cpu->computer, ((ptr_lo + 1) & 0xFF) | (ptr_hi << 8));
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -503,7 +502,7 @@ static bool addr_x_ind(struct cpu* cpu)
 
     // Get the address at the pointer.
     uint8_t lo = nes_read(cpu->computer, ptr);
-    uint16_t hi = nes_read(cpu->computer, ptr + 1);
+    uint8_t hi = nes_read(cpu->computer, ptr + 1);
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -518,7 +517,7 @@ static bool addr_ind_y(struct cpu* cpu)
 
     // Get the address at the pointer.
     uint8_t lo = nes_read(cpu->computer, ptr);
-    uint16_t hi = nes_read(cpu->computer, ptr + 1);
+    uint8_t hi = nes_read(cpu->computer, ptr + 1);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->y;
     return ((addr & 0xFF) + cpu->y) > 0xFF;
@@ -615,7 +614,7 @@ static bool op_asl(struct cpu* cpu)
         // This looks strange, but the 6502 tends to write the original value
         // back to memory before the modified value. This distinction does
         // actually matter, because writing to addresses that are used by
-        // other hardware registers can trigger specific functions.
+        // hardware registers can trigger specific functions.
         nes_write(cpu->computer, cpu->addr_fetched, memory);
         nes_write(cpu->computer, cpu->addr_fetched, result);
     }
@@ -669,10 +668,10 @@ static bool op_bit(struct cpu* cpu)
 {
     // Get the result of accumulator & memory.
     uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->a & memory;
+    uint8_t result = cpu->a & memory;
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
     cpu_setflag(cpu, CPUFLAG_V, result & 0x40);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
@@ -808,7 +807,7 @@ static bool op_cmp(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
     uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->a - memory;
+    uint8_t result = cpu->a - memory;
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_C, cpu->a >= memory);
@@ -824,7 +823,7 @@ static bool op_cpx(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
     uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->x - memory;
+    uint8_t result = cpu->x - memory;
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_C, cpu->x >= memory);
@@ -840,7 +839,7 @@ static bool op_cpy(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
     uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->y - memory;
+    uint8_t result = cpu->y - memory;
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_C, cpu->y >= memory);
@@ -902,10 +901,10 @@ static bool op_eor(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
     uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->a ^ memory;
+    uint8_t result = cpu->a ^ memory;
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new accumulator value.
