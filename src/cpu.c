@@ -85,6 +85,12 @@ static bool op_sei(struct cpu* cpu);
 static bool op_sta(struct cpu* cpu);
 static bool op_stx(struct cpu* cpu);
 static bool op_sty(struct cpu* cpu);
+static bool op_tax(struct cpu* cpu);
+static bool op_tay(struct cpu* cpu);
+static bool op_tsx(struct cpu* cpu);
+static bool op_txa(struct cpu* cpu);
+static bool op_txs(struct cpu* cpu);
+static bool op_tya(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -265,7 +271,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"DEY", 2, addr_impl,  op_dey},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"TXA", 2, addr_impl,  op_txa},
     {"???", 0, addr_zpg,   NULL},
     {"STY", 4, addr_abs,   op_sty},
     {"STA", 4, addr_abs,   op_sta},
@@ -279,11 +285,11 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"STY", 4, addr_zpg_x, op_sty},
     {"STA", 4, addr_zpg_x, op_sta},
-    {"STX", 4, addr_zpg_y,   op_stx},
+    {"STX", 4, addr_zpg_y, op_stx},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"TYA", 2, addr_impl,  op_tya},
     {"STA", 5, addr_abs_y, op_sta},
-    {"???", 0, addr_zpg,   NULL},
+    {"TXS", 2, addr_impl,  op_txs},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"STA", 5, addr_abs_x, op_sta},
@@ -299,9 +305,9 @@ static struct opcode op_lookup[] =
     {"LDA", 3, addr_zpg,   op_lda},
     {"LDX", 3, addr_zpg,   op_ldx},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"TAY", 2, addr_impl,  op_tay},
     {"LDA", 2, addr_imm,   op_lda},
-    {"???", 0, addr_zpg,   NULL},
+    {"TAX", 2, addr_impl,  op_tax},
     {"???", 0, addr_zpg,   NULL},
     {"LDY", 4, addr_abs,   op_ldy},
     {"LDA", 4, addr_abs,   op_lda},
@@ -319,7 +325,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"CLV", 2, addr_impl,  op_clv},
     {"LDA", 4, addr_abs_y, op_lda},
-    {"???", 0, addr_zpg,   NULL},
+    {"TSX", 2, addr_impl,  op_tsx},
     {"???", 0, addr_zpg,   NULL},
     {"LDY", 4, addr_abs_x, op_ldy},
     {"LDA", 4, addr_abs_x, op_lda},
@@ -1227,6 +1233,83 @@ static bool op_stx(struct cpu* cpu)
 static bool op_sty(struct cpu* cpu)
 {
     nes_write(cpu->computer, cpu->addr_fetched, cpu->y);
+    return false;
+}
+
+// TAX: copy the accumulator to the X register.
+static bool op_tax(struct cpu* cpu)
+{
+    // Copy the value over.
+    cpu->x = cpu->a;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->x & 0x80);
+
+    // Return.
+    return false;
+}
+
+// TAY: copy the accumulator to the Y register.
+static bool op_tay(struct cpu* cpu)
+{
+    // Copy the value over.
+    cpu->y = cpu->a;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+
+    // Return.
+    return false;
+}
+
+// TSX: copy the stack pointer to the X register.
+static bool op_tsx(struct cpu* cpu)
+{
+    // Copy the value over.
+    cpu->x = cpu->s;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->x & 0x80);
+
+    // Return.
+    return false;
+}
+
+// TXA: copy the X register to the accumulator.
+static bool op_txa(struct cpu* cpu)
+{
+    // Copy the value over.
+    cpu->a = cpu->x;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
+
+    // Return.
+    return false;
+}
+
+// TXS: copy the X register to the stack pointer.
+static bool op_txs(struct cpu* cpu)
+{
+    cpu->s = cpu->x;
+    return false;
+}
+
+// TYA: copy the Y register to the accumulatr.
+static bool op_tya(struct cpu* cpu)
+{
+    // Copy the value over.
+    cpu->a = cpu->y;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
+
+    // Return.
     return false;
 }
 
