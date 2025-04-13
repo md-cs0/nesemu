@@ -72,6 +72,8 @@ static bool op_nop(struct cpu* cpu);
 static bool op_ora(struct cpu* cpu);
 static bool op_pha(struct cpu* cpu);
 static bool op_php(struct cpu* cpu);
+static bool op_pla(struct cpu* cpu);
+static bool op_plp(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -142,7 +144,7 @@ static struct opcode op_lookup[] =
     {"AND", 3, addr_zpg,   op_and},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"PLP", 4, addr_impl,  op_plp},
     {"AND", 2, addr_imm,   op_and},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -214,7 +216,7 @@ static struct opcode op_lookup[] =
     {"ADC", 3, addr_zpg,   op_adc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"PLA", 4, addr_impl,  op_pla},
     {"ADC", 2, addr_imm,   op_adc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -1061,6 +1063,22 @@ static bool op_pha(struct cpu* cpu)
 static bool op_php(struct cpu* cpu)
 {
     cpu_push(cpu, cpu->p | 0b00010000);
+    return false;
+}
+
+// PLA: pull the accumulator off the stack.
+static bool op_pla(struct cpu* cpu)
+{
+    cpu->a = cpu_pop(cpu);
+    return false;
+}
+
+// PLP: pull the processor status flags off the stack. The break flag
+// is ignored.
+static bool op_plp(struct cpu* cpu)
+{
+    cpu->p = (cpu_pop(cpu) & 0b11001111) | (cpu->p & 0b00110000);
+    cpu->irq_cli_disable = true;
     return false;
 }
 
