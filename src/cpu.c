@@ -82,6 +82,9 @@ static bool op_sbc(struct cpu* cpu);
 static bool op_sec(struct cpu* cpu);
 static bool op_sed(struct cpu* cpu);
 static bool op_sei(struct cpu* cpu);
+static bool op_sta(struct cpu* cpu);
+static bool op_stx(struct cpu* cpu);
+static bool op_sty(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -253,37 +256,37 @@ static struct opcode op_lookup[] =
 
     // 0x80 - 0x8F
     {"???", 0, addr_zpg,   NULL},
+    {"STA", 6, addr_x_ind, op_sta},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"STY", 3, addr_zpg,   op_sty},
+    {"STA", 3, addr_zpg,   op_sta},
+    {"STX", 3, addr_zpg,   op_stx},
     {"???", 0, addr_zpg,   NULL},
     {"DEY", 2, addr_impl,  op_dey},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"STY", 4, addr_abs,   op_sty},
+    {"STA", 4, addr_abs,   op_sta},
+    {"STX", 4, addr_abs,   op_stx},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x90 - 0x9F
     {"BCC", 2, addr_rel,   op_bcc},
+    {"STA", 6, addr_ind_y, op_sta},
+    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, addr_zpg,   NULL},
+    {"STY", 4, addr_zpg_x, op_sty},
+    {"STA", 4, addr_zpg_x, op_sta},
+    {"STX", 4, addr_zpg_y,   op_stx},
+    {"???", 0, addr_zpg,   NULL},
+    {"???", 0, addr_zpg,   NULL},
+    {"STA", 5, addr_abs_y, op_sta},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"STA", 5, addr_abs_x, op_sta},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
 
@@ -1203,6 +1206,27 @@ static bool op_sed(struct cpu* cpu)
 static bool op_sei(struct cpu* cpu)
 {
     cpu_setflag(cpu, CPUFLAG_I, true);
+    return false;
+}
+
+// STA: store the accumulator into a given memory address.
+static bool op_sta(struct cpu* cpu)
+{
+    nes_write(cpu->computer, cpu->addr_fetched, cpu->a);
+    return false;
+}
+
+// STA: store the X register into a given memory address.
+static bool op_stx(struct cpu* cpu)
+{
+    nes_write(cpu->computer, cpu->addr_fetched, cpu->x);
+    return false;
+}
+
+// STA: store the Y register into a given memory address.
+static bool op_sty(struct cpu* cpu)
+{
+    nes_write(cpu->computer, cpu->addr_fetched, cpu->y);
     return false;
 }
 
