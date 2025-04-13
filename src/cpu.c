@@ -69,6 +69,7 @@ static bool op_ldx(struct cpu* cpu);
 static bool op_ldy(struct cpu* cpu);
 static bool op_lsr(struct cpu* cpu);
 static bool op_nop(struct cpu* cpu);
+static bool op_ora(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -96,37 +97,37 @@ static struct opcode op_lookup[] =
 {
     // 0x00 - 0x0F
     {"BRK", 7, addr_impl,  op_brk},
+    {"ORA", 6, addr_x_ind, op_ora},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"ORA", 3, addr_zpg,   op_ora},
     {"ASL", 5, addr_zpg,   op_asl},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"ORA", 2, addr_imm,   op_ora},
     {"ASL", 2, addr_a,     op_asl},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"ORA", 4, addr_abs,   op_ora},
     {"ASL", 6, addr_abs,   op_asl},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x10 - 0x1F
     {"BPL", 2, addr_rel,   op_bpl},
+    {"ORA", 5, addr_ind_y, op_ora},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"ORA", 4, addr_zpg_x, op_ora},
     {"ASL", 6, addr_zpg_x, op_asl},
     {"???", 0, addr_zpg,   NULL},
     {"CLC", 2, addr_impl,  op_clc},
+    {"ORA", 4, addr_abs_y, op_ora},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"ORA", 4, addr_abs_x, op_ora},
     {"ASL", 7, addr_abs_x, op_asl},
     {"???", 0, addr_zpg,   NULL},
 
@@ -559,15 +560,13 @@ static bool op_adc(struct cpu* cpu)
 static bool op_and(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = cpu->a & memory;
+    cpu->a &= nes_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
-    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
 
-    // Set the new accumulator value.
-    cpu->a = result;
+    // Return.
     return true;
 }
 
@@ -784,7 +783,7 @@ static bool op_clv(struct cpu* cpu)
     return false;
 }
 
-// CMP - compare A to memory (may take extra cycle if page crossed).
+// CMP: compare A to memory (may take extra cycle if page crossed).
 static bool op_cmp(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
@@ -800,7 +799,7 @@ static bool op_cmp(struct cpu* cpu)
     return true;
 }
 
-// CPX - compare X to memory.
+// CPX: compare X to memory.
 static bool op_cpx(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
@@ -816,7 +815,7 @@ static bool op_cpx(struct cpu* cpu)
     return false;
 }
 
-// CPY - compare Y to memory.
+// CPY: compare Y to memory.
 static bool op_cpy(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
@@ -832,7 +831,7 @@ static bool op_cpy(struct cpu* cpu)
     return false;
 }
 
-// DEC - decrement memory.
+// DEC: decrement memory.
 static bool op_dec(struct cpu* cpu)
 {
     // Calculate the new value.
@@ -849,7 +848,7 @@ static bool op_dec(struct cpu* cpu)
     return false;
 }
 
-// DEX - decrement X.
+// DEX: decrement X.
 static bool op_dex(struct cpu* cpu)
 {
     // Calculate the new X value.
@@ -863,7 +862,7 @@ static bool op_dex(struct cpu* cpu)
     return false;
 }
 
-// DEY - decrement Y.
+// DEY: decrement Y.
 static bool op_dey(struct cpu* cpu)
 {
     // Calculate the new Y value.
@@ -894,7 +893,7 @@ static bool op_eor(struct cpu* cpu)
     return true;
 }
 
-// INC - increment memory.
+// INC: increment memory.
 static bool op_inc(struct cpu* cpu)
 {
     // Calculate the new value.
@@ -911,7 +910,7 @@ static bool op_inc(struct cpu* cpu)
     return false;
 }
 
-// INX - increment X.
+// INX: increment X.
 static bool op_inx(struct cpu* cpu)
 {
     // Calculate the new X value.
@@ -925,7 +924,7 @@ static bool op_inx(struct cpu* cpu)
     return false;
 }
 
-// INY - increment Y.
+// INY: increment Y.
 static bool op_iny(struct cpu* cpu)
 {
     // Calculate the new Y value.
@@ -939,14 +938,14 @@ static bool op_iny(struct cpu* cpu)
     return false;
 }
 
-// JMP - jump to a specific memory location.
+// JMP: jump to a specific memory location.
 static bool op_jmp(struct cpu* cpu)
 {
     cpu->pc = cpu->addr_fetched;
     return false;
 }
 
-// JMP - jump to a subroutine (same as JMP, but PC + 2 is pushed 
+// JSR: jump to a subroutine (same as JMP, but PC + 2 is pushed 
 // to stack too).
 static bool op_jsr(struct cpu* cpu)
 {
@@ -956,7 +955,7 @@ static bool op_jsr(struct cpu* cpu)
     return false;
 }
 
-// LDA - load a memory value into the accumulator (may take extra 
+// LDA: load a memory value into the accumulator (may take extra 
 // cycle if page crossed).
 static bool op_lda(struct cpu* cpu)
 {
@@ -971,7 +970,7 @@ static bool op_lda(struct cpu* cpu)
     return true;
 }
 
-// LDX - load a memory value into the X register (may take extra 
+// LDX: load a memory value into the X register (may take extra 
 // cycle if page crossed).
 static bool op_ldx(struct cpu* cpu)
 {
@@ -986,7 +985,7 @@ static bool op_ldx(struct cpu* cpu)
     return true;
 }
 
-// LDY - load a memory value into the Y register (may take extra 
+// LDY: load a memory value into the Y register (may take extra 
 // cycle if page crossed).
 static bool op_ldy(struct cpu* cpu)
 {
@@ -1001,7 +1000,7 @@ static bool op_ldy(struct cpu* cpu)
     return true;
 }
 
-// LSR - logical shift right.
+// LSR: logical shift right.
 static bool op_lsr(struct cpu* cpu)
 {
     // Calculate the new value.
@@ -1028,10 +1027,24 @@ static bool op_lsr(struct cpu* cpu)
     return false;
 }
 
-// NOP - no operation.
+// NOP: no operation.
 static bool op_nop(struct cpu* cpu)
 {
     return false;
+}
+
+// ORA: bitwise ORA (may take extra cycle if page crossed).
+static bool op_ora(struct cpu* cpu)
+{
+    // Calculate the new accumulator value.
+    cpu->a |= nes_read(cpu->computer, cpu->addr_fetched);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
+
+    // Return.
+    return true;
 }
 
 // Trigger an IRQ (low level-sensitive).
