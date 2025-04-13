@@ -79,6 +79,9 @@ static bool op_ror(struct cpu* cpu);
 static bool op_rti(struct cpu* cpu);
 static bool op_rts(struct cpu* cpu);
 static bool op_sbc(struct cpu* cpu);
+static bool op_sec(struct cpu* cpu);
+static bool op_sed(struct cpu* cpu);
+static bool op_sei(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -167,7 +170,7 @@ static struct opcode op_lookup[] =
     {"AND", 4, addr_zpg_x, op_and},
     {"ROL", 6, addr_zpg_x, op_rol},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"SEC", 2, addr_impl,  op_sec},
     {"AND", 4, addr_abs_y, op_and},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -239,7 +242,7 @@ static struct opcode op_lookup[] =
     {"ADC", 4, addr_zpg_x, op_adc},
     {"ROR", 6, addr_zpg_x, op_ror},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"SEI", 2, addr_impl,  op_sei},
     {"ADC", 4, addr_abs_y, op_adc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -383,7 +386,7 @@ static struct opcode op_lookup[] =
     {"SBC", 4, addr_zpg_x, op_sbc},
     {"INC", 6, addr_zpg_x, op_inc},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"SED", 2, addr_impl,  op_sed},
     {"SBC", 4, addr_abs_y, op_sbc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -1139,7 +1142,8 @@ static bool op_ror(struct cpu* cpu)
     return false;
 }
 
-// RTI: return from interrupt.
+// RTI: return from interrupt. The IRQ disable flag toggle is effective
+// immediately after this instruction.
 static bool op_rti(struct cpu* cpu)
 {
     // Pull the processor status flags.
@@ -1177,6 +1181,29 @@ static bool op_sbc(struct cpu* cpu)
     // Set the new accumulator value.
     cpu->a = result;
     return true;
+}
+
+// SEC: clear the carry flag.
+static bool op_sec(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_C, true);
+    return false;
+}
+
+// SED: clear the decimal flag.
+static bool op_sed(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_D, true);
+    return false;
+}
+
+// SEI: set the interrupt disable flag. If IRQ is held low, the IRQ is still
+// triggered next instruction anyway, as the flag setting is delayed by one
+// instruction.
+static bool op_sei(struct cpu* cpu)
+{
+    cpu_setflag(cpu, CPUFLAG_I, true);
+    return false;
 }
 
 // Trigger an IRQ (low level-sensitive).
