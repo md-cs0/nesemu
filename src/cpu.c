@@ -428,8 +428,8 @@ static bool addr_imm(struct cpu* cpu)
 // Absolute: fetch the value from address.
 static bool addr_abs(struct cpu* cpu)
 {
-    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
+    uint8_t lo = bus_read(cpu->computer, cpu->pc++);
+    uint8_t hi = bus_read(cpu->computer, cpu->pc++);
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -437,8 +437,8 @@ static bool addr_abs(struct cpu* cpu)
 // Absolute X-indexed: fetch the value from address + Y.
 static bool addr_abs_x(struct cpu* cpu)
 {
-    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
+    uint8_t lo = bus_read(cpu->computer, cpu->pc++);
+    uint8_t hi = bus_read(cpu->computer, cpu->pc++);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->x;
     return ((addr & 0xFF) + cpu->x) > 0xFF;
@@ -447,8 +447,8 @@ static bool addr_abs_x(struct cpu* cpu)
 // Absolute Y-indexed: fetch the value from address + X.
 static bool addr_abs_y(struct cpu* cpu)
 {
-    uint8_t lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t hi = nes_read(cpu->computer, cpu->pc++);
+    uint8_t lo = bus_read(cpu->computer, cpu->pc++);
+    uint8_t hi = bus_read(cpu->computer, cpu->pc++);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->x;
     return ((addr & 0xFF) + cpu->x) > 0xFF;
@@ -457,21 +457,21 @@ static bool addr_abs_y(struct cpu* cpu)
 // Zero page: fetch the value from address & 0xFF.
 static bool addr_zpg(struct cpu* cpu)
 {
-    cpu->addr_fetched = nes_read(cpu->computer, cpu->pc++);
+    cpu->addr_fetched = bus_read(cpu->computer, cpu->pc++);
     return false;
 }
 
 // Zero page X-indexed: fetch the value from (address + X) & 0xFF.
 static bool addr_zpg_x(struct cpu* cpu)
 {
-    cpu->addr_fetched = (nes_read(cpu->computer, cpu->pc++) + cpu->x) & 0xFF;
+    cpu->addr_fetched = (bus_read(cpu->computer, cpu->pc++) + cpu->x) & 0xFF;
     return false;
 }
 
 // Zero page Y-indexed: fetch the value from (address + Y) & 0xFF.
 static bool addr_zpg_y(struct cpu* cpu)
 {
-    cpu->addr_fetched = (nes_read(cpu->computer, cpu->pc++) + cpu->y) & 0xFF;
+    cpu->addr_fetched = (bus_read(cpu->computer, cpu->pc++) + cpu->y) & 0xFF;
     return false;
 }
 
@@ -482,12 +482,12 @@ static bool addr_zpg_y(struct cpu* cpu)
 static bool addr_ind(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_lo = bus_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_hi = bus_read(cpu->computer, cpu->pc++);
 
     // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr_lo | (ptr_hi << 8));
-    uint8_t hi = nes_read(cpu->computer, ((ptr_lo + 1) & 0xFF) | (ptr_hi << 8));
+    uint8_t lo = bus_read(cpu->computer, ptr_lo | (ptr_hi << 8));
+    uint8_t hi = bus_read(cpu->computer, ((ptr_lo + 1) & 0xFF) | (ptr_hi << 8));
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -496,13 +496,13 @@ static bool addr_ind(struct cpu* cpu)
 static bool addr_x_ind(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_lo = bus_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_hi = bus_read(cpu->computer, cpu->pc++);
     uint16_t ptr = ptr_lo | (ptr_hi << 8) + cpu->x;
 
     // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr);
-    uint8_t hi = nes_read(cpu->computer, ptr + 1);
+    uint8_t lo = bus_read(cpu->computer, ptr);
+    uint8_t hi = bus_read(cpu->computer, ptr + 1);
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -511,13 +511,13 @@ static bool addr_x_ind(struct cpu* cpu)
 static bool addr_ind_y(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_lo = bus_read(cpu->computer, cpu->pc++);
+    uint8_t ptr_hi = bus_read(cpu->computer, cpu->pc++);
     uint16_t ptr = ptr_lo | (ptr_hi << 8);
 
     // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr);
-    uint8_t hi = nes_read(cpu->computer, ptr + 1);
+    uint8_t lo = bus_read(cpu->computer, ptr);
+    uint8_t hi = bus_read(cpu->computer, ptr + 1);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->y;
     return ((addr & 0xFF) + cpu->y) > 0xFF;
@@ -526,7 +526,7 @@ static bool addr_ind_y(struct cpu* cpu)
 // Relative: fetch the value from PC + signed imm8.
 static bool addr_rel(struct cpu* cpu)
 {
-    int8_t imm8 = nes_read(cpu->computer, cpu->pc++);
+    int8_t imm8 = bus_read(cpu->computer, cpu->pc++);
     cpu->addr_fetched = cpu->pc + imm8;
     return ((cpu->pc & 0xFF) + imm8) > 0xFF;
 }
@@ -549,20 +549,20 @@ static inline bool cpu_getflag(struct cpu* cpu, enum status_flags flag)
 // Push a byte onto the stack.
 static inline void cpu_push(struct cpu* cpu, uint8_t byte)
 {
-    nes_write(cpu->computer, 0x100 | (cpu->s--), byte);
+    bus_write(cpu->computer, 0x100 | (cpu->s--), byte);
 }
 
 // Pop a byte off the stack.
 static inline uint8_t cpu_pop(struct cpu* cpu)
 {
-    return nes_read(cpu->computer, 0x100 | (cpu->s++));
+    return bus_read(cpu->computer, 0x100 | (cpu->s++));
 }
 
 // ADC: add with carry (may take extra cycle if page crossed).
 static bool op_adc(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
 
     // Calculate the new flags.
@@ -580,7 +580,7 @@ static bool op_adc(struct cpu* cpu)
 static bool op_and(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    cpu->a &= nes_read(cpu->computer, cpu->addr_fetched);
+    cpu->a &= bus_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
@@ -598,7 +598,7 @@ static bool op_asl(struct cpu* cpu)
     if (op_lookup[cpu->opcode].addr_mode == addr_a)
         memory = cpu->a;
     else
-        memory = nes_read(cpu->computer, cpu->addr_fetched);
+        memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = memory << 1;
 
     // Calculate the new flags.
@@ -615,8 +615,8 @@ static bool op_asl(struct cpu* cpu)
         // back to memory before the modified value. This distinction does
         // actually matter, because writing to addresses that are used by
         // hardware registers can trigger specific functions.
-        nes_write(cpu->computer, cpu->addr_fetched, memory);
-        nes_write(cpu->computer, cpu->addr_fetched, result);
+        bus_write(cpu->computer, cpu->addr_fetched, memory);
+        bus_write(cpu->computer, cpu->addr_fetched, result);
     }
     return false;
 }
@@ -667,7 +667,7 @@ static bool op_beq(struct cpu* cpu)
 static bool op_bit(struct cpu* cpu)
 {
     // Get the result of accumulator & memory.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = cpu->a & memory;
 
     // Calculate the new flags.
@@ -806,7 +806,7 @@ static bool op_clv(struct cpu* cpu)
 static bool op_cmp(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = cpu->a - memory;
 
     // Calculate the new flags.
@@ -822,7 +822,7 @@ static bool op_cmp(struct cpu* cpu)
 static bool op_cpx(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = cpu->x - memory;
 
     // Calculate the new flags.
@@ -838,7 +838,7 @@ static bool op_cpx(struct cpu* cpu)
 static bool op_cpy(struct cpu* cpu)
 {
     // Get the result of accumulator - memory.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = cpu->y - memory;
 
     // Calculate the new flags.
@@ -854,7 +854,7 @@ static bool op_cpy(struct cpu* cpu)
 static bool op_dec(struct cpu* cpu)
 {
     // Calculate the new value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = memory - 1;
 
     // Calculate the new flags.
@@ -862,8 +862,8 @@ static bool op_dec(struct cpu* cpu)
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new value in the given memory location.
-    nes_write(cpu->computer, cpu->addr_fetched, memory);
-    nes_write(cpu->computer, cpu->addr_fetched, result);
+    bus_write(cpu->computer, cpu->addr_fetched, memory);
+    bus_write(cpu->computer, cpu->addr_fetched, result);
     return false;
 }
 
@@ -900,7 +900,7 @@ static bool op_dey(struct cpu* cpu)
 static bool op_eor(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = cpu->a ^ memory;
 
     // Calculate the new flags.
@@ -916,7 +916,7 @@ static bool op_eor(struct cpu* cpu)
 static bool op_inc(struct cpu* cpu)
 {
     // Calculate the new value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = memory + 1;
 
     // Calculate the new flags.
@@ -924,8 +924,8 @@ static bool op_inc(struct cpu* cpu)
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new value in the given memory location.
-    nes_write(cpu->computer, cpu->addr_fetched, memory);
-    nes_write(cpu->computer, cpu->addr_fetched, result);
+    bus_write(cpu->computer, cpu->addr_fetched, memory);
+    bus_write(cpu->computer, cpu->addr_fetched, result);
     return false;
 }
 
@@ -979,7 +979,7 @@ static bool op_jsr(struct cpu* cpu)
 static bool op_lda(struct cpu* cpu)
 {
     // Load the memory value into the accumulator.
-    cpu->a = nes_read(cpu->computer, cpu->addr_fetched);
+    cpu->a = bus_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
@@ -994,7 +994,7 @@ static bool op_lda(struct cpu* cpu)
 static bool op_ldx(struct cpu* cpu)
 {
     // Load the memory value into the accumulator.
-    cpu->x = nes_read(cpu->computer, cpu->addr_fetched);
+    cpu->x = bus_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
@@ -1009,7 +1009,7 @@ static bool op_ldx(struct cpu* cpu)
 static bool op_ldy(struct cpu* cpu)
 {
     // Load the memory value into the accumulator.
-    cpu->y = nes_read(cpu->computer, cpu->addr_fetched);
+    cpu->y = bus_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
@@ -1027,7 +1027,7 @@ static bool op_lsr(struct cpu* cpu)
     if (op_lookup[cpu->opcode].addr_mode == addr_a)
         memory = cpu->a;
     else
-        memory = nes_read(cpu->computer, cpu->addr_fetched);
+        memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = memory >> 1;
 
     // Calculate the new flags.
@@ -1040,8 +1040,8 @@ static bool op_lsr(struct cpu* cpu)
         cpu->a = result;
     else
     {
-        nes_write(cpu->computer, cpu->addr_fetched, memory);
-        nes_write(cpu->computer, cpu->addr_fetched, result);
+        bus_write(cpu->computer, cpu->addr_fetched, memory);
+        bus_write(cpu->computer, cpu->addr_fetched, result);
     }
     return false;
 }
@@ -1056,7 +1056,7 @@ static bool op_nop(struct cpu* cpu)
 static bool op_ora(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    cpu->a |= nes_read(cpu->computer, cpu->addr_fetched);
+    cpu->a |= bus_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
@@ -1104,7 +1104,7 @@ static bool op_rol(struct cpu* cpu)
     if (op_lookup[cpu->opcode].addr_mode == addr_a)
         memory = cpu->a;
     else
-        memory = nes_read(cpu->computer, cpu->addr_fetched);
+        memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = (memory << 1) | cpu_getflag(cpu, CPUFLAG_C);
 
     // Calculate the new flags.
@@ -1117,8 +1117,8 @@ static bool op_rol(struct cpu* cpu)
         cpu->a = result;
     else
     {
-        nes_write(cpu->computer, cpu->addr_fetched, memory);
-        nes_write(cpu->computer, cpu->addr_fetched, result);
+        bus_write(cpu->computer, cpu->addr_fetched, memory);
+        bus_write(cpu->computer, cpu->addr_fetched, result);
     }
     return false;
 }
@@ -1131,7 +1131,7 @@ static bool op_ror(struct cpu* cpu)
     if (op_lookup[cpu->opcode].addr_mode == addr_a)
         memory = cpu->a;
     else
-        memory = nes_read(cpu->computer, cpu->addr_fetched);
+        memory = bus_read(cpu->computer, cpu->addr_fetched);
     uint8_t result = (memory >> 1) | (cpu_getflag(cpu, CPUFLAG_C) << 7);
 
     // Calculate the new flags.
@@ -1144,8 +1144,8 @@ static bool op_ror(struct cpu* cpu)
         cpu->a = result;
     else
     {
-        nes_write(cpu->computer, cpu->addr_fetched, memory);
-        nes_write(cpu->computer, cpu->addr_fetched, result);
+        bus_write(cpu->computer, cpu->addr_fetched, memory);
+        bus_write(cpu->computer, cpu->addr_fetched, result);
     }
     return false;
 }
@@ -1177,7 +1177,7 @@ static bool op_rts(struct cpu* cpu)
 static bool op_sbc(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    uint8_t memory = ~nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory = ~bus_read(cpu->computer, cpu->addr_fetched);
     uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
 
     // Calculate the new flags.
@@ -1217,21 +1217,21 @@ static bool op_sei(struct cpu* cpu)
 // STA: store the accumulator into a given memory address.
 static bool op_sta(struct cpu* cpu)
 {
-    nes_write(cpu->computer, cpu->addr_fetched, cpu->a);
+    bus_write(cpu->computer, cpu->addr_fetched, cpu->a);
     return false;
 }
 
 // STA: store the X register into a given memory address.
 static bool op_stx(struct cpu* cpu)
 {
-    nes_write(cpu->computer, cpu->addr_fetched, cpu->x);
+    bus_write(cpu->computer, cpu->addr_fetched, cpu->x);
     return false;
 }
 
 // STA: store the Y register into a given memory address.
 static bool op_sty(struct cpu* cpu)
 {
-    nes_write(cpu->computer, cpu->addr_fetched, cpu->y);
+    bus_write(cpu->computer, cpu->addr_fetched, cpu->y);
     return false;
 }
 
@@ -1393,7 +1393,7 @@ void cpu_clock(struct cpu* cpu)
     
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.
-    cpu->opcode = nes_read(cpu->computer, cpu->pc++);
+    cpu->opcode = bus_read(cpu->computer, cpu->pc++);
     assert(op_lookup[cpu->opcode].cycles);
     cpu->cycles = op_lookup[cpu->opcode].cycles - 1;
 

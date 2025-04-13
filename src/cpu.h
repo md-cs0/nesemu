@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "nes.h"
+#include "bus.h"
 
 // Forward the computer struct.
 struct nes;
@@ -17,7 +17,7 @@ struct nes;
 struct cpu
 {
     // Bind the computer to the CPU.
-    struct nes* computer;
+    struct bus* computer;
 
     // Registers.
     uint8_t a;              // Accumulator.
@@ -38,7 +38,7 @@ struct cpu
 };
 
 // Bind the computer to the CPU.
-inline void cpu_setnes(struct cpu* cpu, struct nes* computer)
+inline void cpu_setbus(struct cpu* cpu, struct bus* computer)
 {
     cpu->computer = computer;
 }
