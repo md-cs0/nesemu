@@ -33,14 +33,17 @@ int main(int argc, char** argv)
     // Read wozmon.bin into the 6502 computer.
     if (bus_writeprog(computer, buffer, size) != size)
     {
-        fprintf(stderr, "wozmon.bin longer than 256 bytes!");
+        fprintf(stderr, "provided wozmon.bin is longer than 256 bytes!");
         return EXIT_FAILURE;
     }
 
     // Reset the CPU and begin execution.
+    computer->reg.kbd_5v = 1;
     cpu_reset(computer->cpu);
     for (;;)
     {
+        if (!computer->cpu->cycles && computer->cpu->enumerated_cycles > 7)
+            cpu_spew(computer->cpu, stdout);
         cpu_clock(computer->cpu);
     }
 

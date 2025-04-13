@@ -8,6 +8,7 @@
 ; illegal opcodes (may be added in the future), etc.
 */
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -165,7 +166,7 @@ static struct opcode op_lookup[] =
     {"AND", 2, addr_imm,   op_and},
     {"ROL", 2, addr_a,     op_rol},
     {"???", 0, NULL,       NULL},
-    {"BIT", 0, addr_abs,   op_bit},
+    {"BIT", 4, addr_abs,   op_bit},
     {"AND", 4, addr_abs,   op_and},
     {"ROL", 6, addr_abs,   op_rol},
     {"???", 0, NULL,       NULL},
@@ -555,7 +556,7 @@ static inline void cpu_push(struct cpu* cpu, uint8_t byte)
 // Pop a byte off the stack.
 static inline uint8_t cpu_pop(struct cpu* cpu)
 {
-    return bus_read(cpu->computer, 0x100 | (cpu->s++));
+    return bus_read(cpu->computer, 0x100 | (++cpu->s));
 }
 
 // ADC: add with carry (may take extra cycle if page crossed).
@@ -1375,6 +1376,9 @@ void cpu_nmi(struct cpu* cpu)
 // Execute a CPU clock.
 void cpu_clock(struct cpu* cpu)
 {
+    // Increment the total number of cycles.
+    cpu->enumerated_cycles++;
+
     // Check if there are any pending cycles still.
     if (cpu->cycles)
     {
@@ -1393,6 +1397,7 @@ void cpu_clock(struct cpu* cpu)
     
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.
+    cpu->last_pc = cpu->pc;
     cpu->opcode = bus_read(cpu->computer, cpu->pc++);
     assert(op_lookup[cpu->opcode].cycles);
     cpu->cycles = op_lookup[cpu->opcode].cycles - 1;
@@ -1422,4 +1427,96 @@ struct cpu* cpu_alloc()
 void cpu_free(struct cpu* cpu)
 {
     free(cpu);
+}
+
+// Spew information on the current CPU status.
+void cpu_spew(struct cpu* cpu, FILE* stream)
+{
+    // Print the last PC and the bytes for the instruction.
+    fprintf(stream, "%04X  ", cpu->last_pc);
+    struct opcode op = op_lookup[cpu->opcode];
+    uint8_t bytes = 0;
+    if (op.addr_mode == addr_impl || op.addr_mode == addr_a)
+        bytes = 1;
+    else if (op.addr_mode == addr_imm || op.addr_mode == addr_zpg
+        || op.addr_mode == addr_zpg_x || op.addr_mode == addr_zpg_y
+        || op.addr_mode == addr_rel)
+        bytes = 2;
+    else
+        bytes = 3;
+    for (int i = 0; i < bytes; ++i)
+    {
+        fprintf(stream, "%02X ", bus_read(cpu->computer, cpu->last_pc + i));
+    }
+    fprintf(stream, "%*s", (3 - bytes) * 3 + 1, "");
+    
+    // Print the opcode itself.
+    fprintf(stream, "%s ", op.name);
+    if (op.addr_mode == addr_impl)
+        fprintf(stream, "                            ");
+    else if (op.addr_mode == addr_a)
+        fprintf(stream, "A                           ");
+    else if (op.addr_mode == addr_imm)
+        fprintf(stream, "#$%02X                        ", bus_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_abs)
+    {
+        uint8_t lo = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = bus_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "$%04X                       ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_abs_x)
+    {
+        uint8_t lo = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = bus_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "$%04X,X                     ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_abs_y)
+    {
+        uint8_t lo = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = bus_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "$%04X,Y                     ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_zpg)
+        fprintf(stream, "$%02X                         ", bus_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_zpg_x)
+        fprintf(stream, "$%02X,X                       ", bus_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_zpg_y)
+        fprintf(stream, "$%02X,Y                       ", bus_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_ind)
+    {
+        uint8_t lo = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = bus_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "($%04X)                     ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_x_ind)
+    {
+        uint8_t lo = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = bus_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "($%04X,X)                   ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_ind_y)
+    {
+        uint8_t lo = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = bus_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "($%04X),Y                   ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_rel)
+    {
+        int8_t imm8 = bus_read(cpu->computer, cpu->last_pc + 1);
+        uint16_t address = cpu->last_pc + 2 + imm8;
+        fprintf(stream, "$%02X                       ", address);
+    }
+
+    // Print register information.
+    fprintf(stream, "A:%02X ", cpu->a);
+    fprintf(stream, "X:%02X ", cpu->x);
+    fprintf(stream, "Y:%02X ", cpu->y);
+    fprintf(stream, "P:%02X ", cpu->p);
+    fprintf(stream, "SP:%02X             ", cpu->s);
+
+    // Print the number of enumerated cycles.
+    fprintf(stream, "CYC:%llu", cpu->enumerated_cycles - 7);
+
+    // Finish.
+    fprintf(stream, "\n");
 }
