@@ -67,6 +67,7 @@ static bool op_jsr(struct cpu* cpu);
 static bool op_lda(struct cpu* cpu);
 static bool op_ldx(struct cpu* cpu);
 static bool op_ldy(struct cpu* cpu);
+static bool op_lsr(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -171,15 +172,15 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"EOR", 3, addr_zpg,   op_eor},
-    {"???", 0, addr_zpg,   NULL},
+    {"LSR", 5, addr_zpg,   op_lsr},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"EOR", 2, addr_imm,   op_eor},
-    {"???", 0, addr_zpg,   NULL},
+    {"LSR", 2, addr_a,     op_lsr},
     {"???", 0, addr_zpg,   NULL},
     {"JMP", 3, addr_abs,   op_jmp},
     {"EOR", 4, addr_abs,   op_eor},
-    {"???", 0, addr_zpg,   NULL},
+    {"LSR", 6, addr_abs,   op_lsr},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x50 - 0x5F
@@ -189,7 +190,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"EOR", 4, addr_zpg_x, op_eor},
-    {"???", 0, addr_zpg,   NULL},
+    {"LSR", 6, addr_zpg_x, op_lsr},
     {"???", 0, addr_zpg,   NULL},
     {"CLI", 2, addr_impl,  op_cli},
     {"EOR", 4, addr_abs_y, op_eor},
@@ -197,7 +198,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"EOR", 4, addr_abs_x, op_eor},
-    {"???", 0, addr_zpg,   NULL},
+    {"LSR", 7, addr_abs_x, op_lsr},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x60 - 0x6F
@@ -573,7 +574,11 @@ static bool op_and(struct cpu* cpu)
 static bool op_asl(struct cpu* cpu)
 {
     // Calculate the new value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t memory;
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        memory = cpu->a;
+    else
+        memory = nes_read(cpu->computer, cpu->addr_fetched);
     uint16_t result = memory << 1;
 
     // Calculate the new flags.
@@ -993,6 +998,33 @@ static bool op_ldy(struct cpu* cpu)
 
     // Return.
     return true;
+}
+
+// LSR - logical shift right.
+static bool op_lsr(struct cpu* cpu)
+{
+    // Calculate the new value.
+    uint8_t memory;
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        memory = cpu->a;
+    else
+        memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t result = memory >> 1;
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_C, memory & 0x01);
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new value in the given memory location.
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        cpu->a = result;
+    else
+    {
+        nes_write(cpu->computer, cpu->addr_fetched, memory);
+        nes_write(cpu->computer, cpu->addr_fetched, result);
+    }
+    return false;
 }
 
 // Trigger an IRQ (low level-sensitive).
