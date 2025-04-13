@@ -70,6 +70,8 @@ static bool op_ldy(struct cpu* cpu);
 static bool op_lsr(struct cpu* cpu);
 static bool op_nop(struct cpu* cpu);
 static bool op_ora(struct cpu* cpu);
+static bool op_pha(struct cpu* cpu);
+static bool op_php(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -104,7 +106,7 @@ static struct opcode op_lookup[] =
     {"ORA", 3, addr_zpg,   op_ora},
     {"ASL", 5, addr_zpg,   op_asl},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"PHP", 3, addr_impl,  op_php},
     {"ORA", 2, addr_imm,   op_ora},
     {"ASL", 2, addr_a,     op_asl},
     {"???", 0, addr_zpg,   NULL},
@@ -176,7 +178,7 @@ static struct opcode op_lookup[] =
     {"EOR", 3, addr_zpg,   op_eor},
     {"LSR", 5, addr_zpg,   op_lsr},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"PHA", 3, addr_impl,  op_pha},
     {"EOR", 2, addr_imm,   op_eor},
     {"LSR", 2, addr_a,     op_lsr},
     {"???", 0, addr_zpg,   NULL},
@@ -1045,6 +1047,21 @@ static bool op_ora(struct cpu* cpu)
 
     // Return.
     return true;
+}
+
+// PHA: push the accumulator onto the stack.
+static bool op_pha(struct cpu* cpu)
+{
+    cpu_push(cpu, cpu->a);
+    return false;
+}
+
+// PHP: push the processor status flags onto the stack. The break flag
+// is set to 1 for the pushed flags.
+static bool op_php(struct cpu* cpu)
+{
+    cpu_push(cpu, cpu->p | 0b00010000);
+    return false;
 }
 
 // Trigger an IRQ (low level-sensitive).
