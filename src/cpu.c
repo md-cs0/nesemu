@@ -78,6 +78,7 @@ static bool op_rol(struct cpu* cpu);
 static bool op_ror(struct cpu* cpu);
 static bool op_rti(struct cpu* cpu);
 static bool op_rts(struct cpu* cpu);
+static bool op_sbc(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -357,37 +358,37 @@ static struct opcode op_lookup[] =
 
     // 0xE0 - 0xEF
     {"CPX", 2, addr_imm,   op_cpx},
-    {"???", 0, addr_zpg,   NULL},
+    {"SBC", 6, addr_x_ind, op_sbc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"CPX", 3, addr_zpg,   op_cpx},
-    {"???", 0, addr_zpg,   NULL},
+    {"SBC", 3, addr_zpg,   op_sbc},
     {"INC", 5, addr_zpg,   op_inc},
     {"???", 0, addr_zpg,   NULL},
     {"INX", 2, addr_impl,  op_inx},
-    {"???", 0, addr_zpg,   NULL},
+    {"SBC", 2, addr_imm,   op_sbc},
     {"NOP", 2, addr_impl,  op_nop},
     {"???", 0, addr_zpg,   NULL},
     {"CPX", 4, addr_abs,   op_cpx},
-    {"???", 0, addr_zpg,   NULL},
+    {"SBC", 4, addr_abs,   op_sbc},
     {"INC", 6, addr_abs,   op_inc},
     {"???", 0, addr_zpg,   NULL},
 
     // 0xF0 - 0xFF
     {"BEQ", 2, addr_rel,   op_beq},
+    {"SBC", 5, addr_ind_y, op_sbc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"SBC", 4, addr_zpg_x, op_sbc},
     {"INC", 6, addr_zpg_x, op_inc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
+    {"SBC", 4, addr_abs_y, op_sbc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"SBC", 4, addr_abs_x, op_sbc},
     {"INC", 7, addr_abs_x, op_inc},
     {"???", 0, addr_zpg,   NULL}
 };
@@ -1158,6 +1159,24 @@ static bool op_rts(struct cpu* cpu)
 {
     cpu->pc = (cpu_pop(cpu) | (cpu_pop(cpu) << 8)) + 1;
     return false;
+}
+
+// SBC: subtract with carry (may take extra cycle if page crossed).
+static bool op_sbc(struct cpu* cpu)
+{
+    // Calculate the new accumulator value.
+    uint8_t memory = ~nes_read(cpu->computer, cpu->addr_fetched);
+    uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_C, result < 0x00);
+    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new accumulator value.
+    cpu->a = result;
+    return true;
 }
 
 // Trigger an IRQ (low level-sensitive).
