@@ -74,6 +74,8 @@ static bool op_pha(struct cpu* cpu);
 static bool op_php(struct cpu* cpu);
 static bool op_pla(struct cpu* cpu);
 static bool op_plp(struct cpu* cpu);
+static bool op_rol(struct cpu* cpu);
+static bool op_ror(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -142,15 +144,15 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"BIT", 3, addr_zpg,   op_bit},
     {"AND", 3, addr_zpg,   op_and},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROL", 5, addr_zpg,   op_rol},
     {"???", 0, addr_zpg,   NULL},
     {"PLP", 4, addr_impl,  op_plp},
     {"AND", 2, addr_imm,   op_and},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROL", 2, addr_a,     op_rol},
     {"???", 0, addr_zpg,   NULL},
     {"BIT", 0, addr_abs,   op_bit},
     {"AND", 4, addr_abs,   op_and},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROL", 6, addr_abs,   op_rol},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x30 - 0x3F
@@ -160,7 +162,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"AND", 4, addr_zpg_x, op_and},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROL", 6, addr_zpg_x, op_rol},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"AND", 4, addr_abs_y, op_and},
@@ -168,7 +170,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"AND", 4, addr_abs_x, op_and},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROL", 7, addr_abs_x, op_rol},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x40 - 0x4F
@@ -214,15 +216,15 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"ADC", 3, addr_zpg,   op_adc},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROR", 5, addr_zpg,   op_ror},
     {"???", 0, addr_zpg,   NULL},
     {"PLA", 4, addr_impl,  op_pla},
     {"ADC", 2, addr_imm,   op_adc},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROR", 2, addr_a,     op_ror},
     {"???", 0, addr_zpg,   NULL},
     {"JMP", 5, addr_ind,   op_jmp},
     {"ADC", 4, addr_abs,   op_adc},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROR", 6, addr_abs,   op_ror},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x70 - 0x7F
@@ -232,7 +234,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"ADC", 4, addr_zpg_x, op_adc},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROR", 6, addr_zpg_x, op_ror},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"ADC", 4, addr_abs_y, op_adc},
@@ -240,7 +242,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
     {"ADC", 4, addr_abs_x, op_adc},
-    {"???", 0, addr_zpg,   NULL},
+    {"ROR", 7, addr_abs_x, op_ror},
     {"???", 0, addr_zpg,   NULL},
 
     // 0x80 - 0x8F
@@ -583,11 +585,11 @@ static bool op_asl(struct cpu* cpu)
         memory = cpu->a;
     else
         memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint16_t result = memory << 1;
+    uint8_t result = memory << 1;
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_C, memory & 0x80);
-    cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new value in the given memory location.
@@ -1079,6 +1081,60 @@ static bool op_plp(struct cpu* cpu)
 {
     cpu->p = (cpu_pop(cpu) & 0b11001111) | (cpu->p & 0b00110000);
     cpu->irq_cli_disable = true;
+    return false;
+}
+
+// ROL: rotate left.
+static bool op_rol(struct cpu* cpu)
+{
+    // Calculate the new value.
+    uint8_t memory;
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        memory = cpu->a;
+    else
+        memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t result = (memory << 1) | cpu_getflag(cpu, CPUFLAG_C);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_C, memory & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new value in the given memory location.
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        cpu->a = result;
+    else
+    {
+        nes_write(cpu->computer, cpu->addr_fetched, memory);
+        nes_write(cpu->computer, cpu->addr_fetched, result);
+    }
+    return false;
+}
+
+// ROR: rotate left.
+static bool op_ror(struct cpu* cpu)
+{
+    // Calculate the new value.
+    uint8_t memory;
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        memory = cpu->a;
+    else
+        memory = nes_read(cpu->computer, cpu->addr_fetched);
+    uint8_t result = (memory >> 1) | (cpu_getflag(cpu, CPUFLAG_C) << 7);
+
+    // Calculate the new flags.
+    cpu_setflag(cpu, CPUFLAG_C, memory & 0x01);
+    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
+    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+
+    // Set the new value in the given memory location.
+    if (op_lookup[cpu->opcode].addr_mode == addr_a)
+        cpu->a = result;
+    else
+    {
+        nes_write(cpu->computer, cpu->addr_fetched, memory);
+        nes_write(cpu->computer, cpu->addr_fetched, result);
+    }
     return false;
 }
 
