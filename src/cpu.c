@@ -68,6 +68,7 @@ static bool op_lda(struct cpu* cpu);
 static bool op_ldx(struct cpu* cpu);
 static bool op_ldy(struct cpu* cpu);
 static bool op_lsr(struct cpu* cpu);
+static bool op_nop(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -356,7 +357,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
     {"INX", 2, addr_impl,  op_inx},
     {"???", 0, addr_zpg,   NULL},
-    {"???", 0, addr_zpg,   NULL},
+    {"NOP", 2, addr_impl,  op_nop},
     {"???", 0, addr_zpg,   NULL},
     {"CPX", 4, addr_abs,   op_cpx},
     {"???", 0, addr_zpg,   NULL},
@@ -1024,6 +1025,12 @@ static bool op_lsr(struct cpu* cpu)
         nes_write(cpu->computer, cpu->addr_fetched, memory);
         nes_write(cpu->computer, cpu->addr_fetched, result);
     }
+    return false;
+}
+
+// NOP - no operation.
+static bool op_nop(struct cpu* cpu)
+{
     return false;
 }
 
