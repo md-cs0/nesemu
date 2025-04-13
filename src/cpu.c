@@ -76,6 +76,8 @@ static bool op_pla(struct cpu* cpu);
 static bool op_plp(struct cpu* cpu);
 static bool op_rol(struct cpu* cpu);
 static bool op_ror(struct cpu* cpu);
+static bool op_rti(struct cpu* cpu);
+static bool op_rts(struct cpu* cpu);
 
 // 6502 processor status flags.
 enum status_flags
@@ -174,7 +176,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
 
     // 0x40 - 0x4F
-    {"???", 0, addr_zpg,   NULL},
+    {"RTI", 6, addr_impl,  op_rti},
     {"EOR", 6, addr_x_ind, op_eor},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -210,7 +212,7 @@ static struct opcode op_lookup[] =
     {"???", 0, addr_zpg,   NULL},
 
     // 0x60 - 0x6F
-    {"???", 0, addr_zpg,   NULL},
+    {"RTS", 6, addr_impl,  op_rts},
     {"ADC", 6, addr_x_ind, op_adc},
     {"???", 0, addr_zpg,   NULL},
     {"???", 0, addr_zpg,   NULL},
@@ -778,7 +780,6 @@ static bool op_cld(struct cpu* cpu)
 static bool op_cli(struct cpu* cpu)
 {
     cpu_setflag(cpu, CPUFLAG_I, false);
-    cpu->irq_cli_disable = true;
     return false;
 }
 
@@ -1080,7 +1081,6 @@ static bool op_pla(struct cpu* cpu)
 static bool op_plp(struct cpu* cpu)
 {
     cpu->p = (cpu_pop(cpu) & 0b11001111) | (cpu->p & 0b00110000);
-    cpu->irq_cli_disable = true;
     return false;
 }
 
@@ -1135,6 +1135,28 @@ static bool op_ror(struct cpu* cpu)
         nes_write(cpu->computer, cpu->addr_fetched, memory);
         nes_write(cpu->computer, cpu->addr_fetched, result);
     }
+    return false;
+}
+
+// RTI: return from interrupt.
+static bool op_rti(struct cpu* cpu)
+{
+    // Pull the processor status flags.
+    op_plp(cpu);
+    cpu->irq_toggle = cpu_getflag(cpu, CPUFLAG_I);
+
+    // Pull the program counter from the stack.
+    op_rts(cpu);
+    cpu->pc--;
+    
+    // Return.
+    return false;
+}
+
+// RTS: return from subroutine.
+static bool op_rts(struct cpu* cpu)
+{
+    cpu->pc = (cpu_pop(cpu) | (cpu_pop(cpu) << 8)) + 1;
     return false;
 }
 
@@ -1208,14 +1230,14 @@ void cpu_clock(struct cpu* cpu)
         return;
     }
 
-    // If the IRQ signal is held low and irq_cli_disable is false,
+    // If the IRQ signal is held low and the interrupt flag matches the cached toggle,
     // trigger an IRQ.
-    if (!cpu->irq && !cpu->irq_cli_disable)
+    if (!cpu->irq && cpu_getflag(cpu, CPUFLAG_I) == cpu->irq_toggle)
     {
         cpu_irq(cpu);
         return;
     }
-    cpu->irq_cli_disable = false;
+    cpu->irq_toggle = cpu_getflag(cpu, CPUFLAG_I);
     
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.

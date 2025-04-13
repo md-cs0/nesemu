@@ -34,7 +34,7 @@ struct cpu
 
     // Interrupts.
     bool irq;               // Must be set to false (i.e. held low) to invoke IRQ.
-    bool irq_cli_disable;   // Only used by the CLI emulation code.
+    bool irq_toggle;        // Only relevant to CLI/SEI/PLP/RTI.
 };
 
 // Bind the computer to the CPU.
