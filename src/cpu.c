@@ -735,7 +735,7 @@ static bool op_brk(struct cpu* cpu)
 
     // Fetch the new PC.
     cpu->pc = IRQ_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
 
     // Toggle the IRQ disable flag.
@@ -1326,7 +1326,7 @@ static void cpu_irq(struct cpu* cpu)
 
     // Fetch the new PC.
     cpu->pc = IRQ_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
 
     // Toggle the IRQ disable flag.
@@ -1348,7 +1348,7 @@ void cpu_reset(struct cpu* cpu)
 
     // Read from the reset vector.
     cpu->pc = RESET_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
     
     // The reset sequence requires 7 cycles.
@@ -1365,7 +1365,7 @@ void cpu_nmi(struct cpu* cpu)
 
     // Fetch the new PC.
     cpu->pc = NMI_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
 
     // Wait 7 cycles.
@@ -1404,7 +1404,7 @@ void cpu_clock(struct cpu* cpu)
     // byte must be re-fetched with the carry added.
     bool page_crossed = op_lookup[cpu->opcode].addr_mode(cpu);
     cpu->cycles += (page_crossed & op_lookup[cpu->opcode].op(cpu));
-    assert(cpu->cycles > 6);
+    assert(cpu->cycles < 7);
 }
 
 // Create a new CPU instance. The CPU must be reset before used.
