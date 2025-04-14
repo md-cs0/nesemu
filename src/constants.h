@@ -2,6 +2,8 @@
 ; NES-specific named constants.
 */
 
+#pragma once
+
 #define NES_W           256
 #define NES_H           240
 

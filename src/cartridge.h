@@ -2,7 +2,10 @@
 ; NES cartridge with basic iNES binary format support.
 */
 
+#pragma once
+
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "mappers_base.h"
 
@@ -24,6 +27,12 @@ struct cartridge
     // Mapper.
     struct mapper* mapper;
 };
+
+// Read per CPU request.
+bool cartridge_cpu_read(struct cartridge* cartridge, uint16_t address, uint8_t* read);
+
+// Write per CPU request.
+bool cartridge_cpu_write(struct cartridge* cartridge, uint16_t address, uint8_t data);
 
 // Create a new cartridge instance.
 struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size);

@@ -2,11 +2,15 @@
 ; NES cartridge using the iNES binary format.
 */
 
+#include <stdio.h>
 #include <memory.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "util.h"
 #include "cartridge.h"
+
+#include "mappers_nrom.h"
 
 #define INES_MAGIC 0x1A53454E
 
@@ -44,6 +48,25 @@ struct ines_header
     // Unused padding.
     uint8_t padding2[5];
 };
+
+// Read per CPU request.
+bool cartridge_cpu_read(struct cartridge* cartridge, uint16_t address, uint8_t* read)
+{
+    // Check if the cartridge mapper returns a mapped address.
+    intptr_t mapped_address = cartridge->mapper->cpu_read(cartridge->mapper, address);
+    if (mapped_address == UNMAPPED)
+        return false;
+
+    // Read from the given mapped address.
+    *read = cartridge->prg_rom[mapped_address];
+    return true;
+}
+
+// Write per CPU request.
+bool cartridge_cpu_write(struct cartridge* cartridge, uint16_t address, uint8_t data)
+{
+    return false;
+}
 
 // Create a new cartridge instance.
 struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
@@ -86,10 +109,14 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
     {
     // Mapper 0: NROM
     case MAPPER_NROM:
-    {
-
+        cartridge->mapper = (struct mapper*)mapper_nrom_alloc();
+        break;
+    default:
+        fprintf(stderr, "mapper ID %d is currently not supported", mapper_id);
+        goto corrupt;
     }
-    }
+    cartridge->mapper->prg_rom_banks = header->prg_rom_size;
+    cartridge->mapper->chr_rom_banks = header->chr_rom_size;
 
     // Return the cartridge.
     return cartridge;
@@ -104,7 +131,8 @@ void cartridge_free(struct cartridge* cartridge)
 {
     if (cartridge == NULL)
         return;
-    free(cartridge->mapper);
+    if (cartridge->mapper)
+        cartridge->mapper->free(cartridge->mapper); // This is fine because &mapper->base = &mapper.
     free(cartridge->prg_rom);
     free(cartridge->chr_rom);
     free(cartridge);
