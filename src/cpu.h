@@ -38,7 +38,6 @@ struct cpu
     bool irq_toggle;        // Only relevant to CLI/SEI/PLP/RTI.
 
     // Debug information.
-    uint16_t last_pc;
     uint64_t enumerated_cycles;
 };
 
@@ -64,4 +63,4 @@ struct cpu* cpu_alloc();
 void cpu_free(struct cpu* cpu);
 
 // Spew information on the current CPU status.
-void cpu_spew(struct cpu* cpu, FILE* stream);
+void cpu_spew(struct cpu* cpu, uint16_t pc, FILE* stream);

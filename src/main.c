@@ -143,8 +143,7 @@ int main(int argc, char** argv)
 
     // NESTEST.NES DEBUG
     display.computer->cpu->pc = 0xC000;
-    bool hit_0 = true;
-    FILE* my_log = fopen("my.log", "w");
+    FILE* my_log = fopen("../old/nestest/my.log", "w");
 
     // Start the main event loop.
     uint64_t cycles = 0;
@@ -166,17 +165,14 @@ int main(int argc, char** argv)
         // Execute a CPU cycle every 3 PPU cycles.
         if (cycles % 3 == 0)
         {
-            cpu_clock(display.computer->cpu);
-
             // DEBUG
-            if (hit_0 && display.computer->cpu->enumerated_cycles > 7)
+            if (display.computer->cpu->cycles == 0 && display.computer->cpu->enumerated_cycles >= 7)
             {
-                cpu_spew(display.computer->cpu, my_log);
+                cpu_spew(display.computer->cpu, display.computer->cpu->pc, my_log);
                 fflush(my_log);
-                hit_0 = false;
             }
-            else if (!display.computer->cpu->cycles)
-                hit_0 = true;
+
+            cpu_clock(display.computer->cpu);
         }
         cycles++;
 
