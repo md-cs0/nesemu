@@ -10,22 +10,33 @@
 #include "SDL.h"
 
 #include "constants.h"
+#include "util.h"
 #include "nes.h"
 
 // Create display information for this current session.
-struct display_data
+struct nes_display_data
 {
+    // SDL data.
     SDL_Window* window;     // The window itself.    
     SDL_Renderer* renderer; // The renderer used for the window.
     SDL_Texture* buffer;    // The buffer that is being manipulated by the emulator.
     unsigned w;             // The current display width.
     unsigned h;             // The current display height.
+
+    // NES data.
+    struct nes* computer;
+    struct cartridge* cartridge;
 };
-static struct display_data display;
+static struct nes_display_data display;
 
 // Unload SDL on process exit.
 static void process_exit()
 {
+    // Clear up the NES emulator.
+    nes_free(display.computer);
+    cartridge_free(display.cartridge);
+
+    // Clear up SDL.
     SDL_DestroyTexture(display.buffer);
     SDL_DestroyRenderer(display.renderer);
     SDL_DestroyWindow(display.window);
@@ -81,6 +92,22 @@ static int watcher(void* userdata, SDL_Event* event)
 // Top-level function.
 int main(int argc, char** argv)
 {
+    // Before anything is initialized, the cartridge file should be read into
+    // memory first.
+    if (argc < 2)
+        goto no_cartridge;
+    uint8_t* ines_data;
+    size_t ines_size;
+    FILE* ines = fopen(argv[1], "rb");
+    if (ines == NULL)
+        goto no_cartridge;
+    fseek(ines, 0, SEEK_END);
+    ines_size = ftell(ines);
+    ines_data = safe_malloc(ines_size);
+    fseek(ines, 0, SEEK_SET);
+    fread(ines_data, ines_size, 1, ines);
+    fclose(ines);
+
     // Initialize SDL and the time seed.
     SDL_Init(SDL_INIT_EVERYTHING);
     srand((unsigned)time(NULL));
@@ -104,8 +131,14 @@ int main(int argc, char** argv)
     display.h = NES_H;
     
     // Set up the NES computer.
-    struct nes* computer = nes_alloc();
-    cpu_setnes(computer->cpu, computer);
+    display.computer = nes_alloc();
+    if ((display.cartridge = cartridge_alloc(ines_data, ines_size)) == NULL)
+    {
+        fprintf(stderr, "NES ROM FILE IS CORRUPT");
+        exit(EXIT_FAILURE);
+    }
+    nes_setcartridge(display.computer, display.cartridge);
+    cpu_setnes(display.computer->cpu, display.computer);
 
     // Start the main event loop.
     SDL_AddEventWatch(watcher, NULL);
@@ -129,6 +162,8 @@ int main(int argc, char** argv)
     }
 
     // Exit.
+no_cartridge:
+    puts("usage: nesemu game.nes");
 quit:
     return EXIT_SUCCESS;
 }

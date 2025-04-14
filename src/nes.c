@@ -28,6 +28,8 @@ struct nes* nes_alloc()
 // Free a NES computer instance.
 void nes_free(struct nes* computer)
 {
+    if (computer == NULL)
+        return;
     cpu_free(computer->cpu);
     free(computer);
 }
