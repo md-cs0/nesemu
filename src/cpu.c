@@ -8,6 +8,7 @@
 ; illegal opcodes (may be added in the future), etc.
 */
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -165,7 +166,7 @@ static struct opcode op_lookup[] =
     {"AND", 2, addr_imm,   op_and},
     {"ROL", 2, addr_a,     op_rol},
     {"???", 0, NULL,       NULL},
-    {"BIT", 0, addr_abs,   op_bit},
+    {"BIT", 4, addr_abs,   op_bit},
     {"AND", 4, addr_abs,   op_and},
     {"ROL", 6, addr_abs,   op_rol},
     {"???", 0, NULL,       NULL},
@@ -336,8 +337,8 @@ static struct opcode op_lookup[] =
     {"CPY", 2, addr_imm,   op_cpy},
     {"CMP", 6, addr_x_ind, op_cmp},
     {"???", 0, NULL,       NULL},
-    {"CPY", 3, addr_zpg,   op_cpy},
     {"???", 0, NULL,       NULL},
+    {"CPY", 3, addr_zpg,   op_cpy},
     {"CMP", 3, addr_zpg,   op_cmp},
     {"DEC", 5, addr_zpg,   op_dec},
     {"???", 0, NULL,       NULL},
@@ -450,7 +451,7 @@ static bool addr_abs_y(struct cpu* cpu)
     uint8_t lo = nes_read(cpu->computer, cpu->pc++);
     uint8_t hi = nes_read(cpu->computer, cpu->pc++);
     uint16_t addr = lo | (hi << 8);
-    cpu->addr_fetched = addr + cpu->x;
+    cpu->addr_fetched = addr + cpu->y;
     return ((addr & 0xFF) + cpu->x) > 0xFF;
 }
 
@@ -496,13 +497,11 @@ static bool addr_ind(struct cpu* cpu)
 static bool addr_x_ind(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
-    uint16_t ptr = ptr_lo | (ptr_hi << 8) + cpu->x;
+    uint8_t ptr = nes_read(cpu->computer, cpu->pc++) + cpu->x;
 
     // Get the address at the pointer.
-    uint8_t lo = nes_read(cpu->computer, ptr);
-    uint8_t hi = nes_read(cpu->computer, ptr + 1);
+    uint8_t lo = nes_read(cpu->computer, ptr & 0xFF);
+    uint8_t hi = nes_read(cpu->computer, (ptr + 1) & 0xFF);
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -511,13 +510,11 @@ static bool addr_x_ind(struct cpu* cpu)
 static bool addr_ind_y(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = nes_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = nes_read(cpu->computer, cpu->pc++);
-    uint16_t ptr = ptr_lo | (ptr_hi << 8);
+    uint8_t ptr = nes_read(cpu->computer, cpu->pc++);
 
     // Get the address at the pointer.
     uint8_t lo = nes_read(cpu->computer, ptr);
-    uint8_t hi = nes_read(cpu->computer, ptr + 1);
+    uint8_t hi = nes_read(cpu->computer, (ptr + 1) & 0xFF);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->y;
     return ((addr & 0xFF) + cpu->y) > 0xFF;
@@ -555,7 +552,7 @@ static inline void cpu_push(struct cpu* cpu, uint8_t byte)
 // Pop a byte off the stack.
 static inline uint8_t cpu_pop(struct cpu* cpu)
 {
-    return nes_read(cpu->computer, 0x100 | (cpu->s++));
+    return nes_read(cpu->computer, 0x100 | (++cpu->s));
 }
 
 // ADC: add with carry (may take extra cycle if page crossed).
@@ -568,7 +565,7 @@ static bool op_adc(struct cpu* cpu)
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_C, result > 0xFF);
     cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
-    cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
+    cpu_setflag(cpu, CPUFLAG_V, ((result ^ cpu->a) & (result ^ memory)) & 0x80);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new accumulator value.
@@ -735,7 +732,7 @@ static bool op_brk(struct cpu* cpu)
 
     // Fetch the new PC.
     cpu->pc = IRQ_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
 
     // Toggle the IRQ disable flag.
@@ -874,8 +871,8 @@ static bool op_dex(struct cpu* cpu)
     cpu->x--;
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
-    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->x & 0x80);
 
     // Return.
     return false;
@@ -900,15 +897,13 @@ static bool op_dey(struct cpu* cpu)
 static bool op_eor(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    uint8_t memory = nes_read(cpu->computer, cpu->addr_fetched);
-    uint8_t result = cpu->a ^ memory;
+    cpu->a ^= nes_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
-    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
 
-    // Set the new accumulator value.
-    cpu->a = result;
+    // Return.
     return true;
 }
 
@@ -1181,7 +1176,7 @@ static bool op_sbc(struct cpu* cpu)
     uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_C, result < 0x00);
+    cpu_setflag(cpu, CPUFLAG_C, result & 0xFF00);
     cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
     cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
@@ -1326,7 +1321,7 @@ static void cpu_irq(struct cpu* cpu)
 
     // Fetch the new PC.
     cpu->pc = IRQ_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
 
     // Toggle the IRQ disable flag.
@@ -1348,7 +1343,7 @@ void cpu_reset(struct cpu* cpu)
 
     // Read from the reset vector.
     cpu->pc = RESET_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
     
     // The reset sequence requires 7 cycles.
@@ -1365,7 +1360,7 @@ void cpu_nmi(struct cpu* cpu)
 
     // Fetch the new PC.
     cpu->pc = NMI_VECTOR;
-    addr_ind(cpu);
+    addr_abs(cpu);
     cpu->pc = cpu->addr_fetched;
 
     // Wait 7 cycles.
@@ -1375,6 +1370,9 @@ void cpu_nmi(struct cpu* cpu)
 // Execute a CPU clock.
 void cpu_clock(struct cpu* cpu)
 {
+    // Increment the total number of cycles.
+    cpu->enumerated_cycles++;
+
     // Check if there are any pending cycles still.
     if (cpu->cycles)
     {
@@ -1393,6 +1391,7 @@ void cpu_clock(struct cpu* cpu)
     
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.
+    cpu->last_pc = cpu->pc;
     cpu->opcode = nes_read(cpu->computer, cpu->pc++);
     assert(op_lookup[cpu->opcode].cycles);
     cpu->cycles = op_lookup[cpu->opcode].cycles - 1;
@@ -1404,7 +1403,7 @@ void cpu_clock(struct cpu* cpu)
     // byte must be re-fetched with the carry added.
     bool page_crossed = op_lookup[cpu->opcode].addr_mode(cpu);
     cpu->cycles += (page_crossed & op_lookup[cpu->opcode].op(cpu));
-    assert(cpu->cycles > 6);
+    assert(cpu->cycles < 7);
 }
 
 // Create a new CPU instance. The CPU must be reset before used.
@@ -1422,4 +1421,96 @@ struct cpu* cpu_alloc()
 void cpu_free(struct cpu* cpu)
 {
     free(cpu);
+}
+
+// Spew information on the current CPU status.
+void cpu_spew(struct cpu* cpu, FILE* stream)
+{
+    // Print the last PC and the bytes for the instruction.
+    fprintf(stream, "%04X  ", cpu->last_pc);
+    struct opcode op = op_lookup[cpu->opcode];
+    uint8_t bytes = 0;
+    if (op.addr_mode == addr_impl || op.addr_mode == addr_a)
+        bytes = 1;
+    else if (op.addr_mode == addr_imm || op.addr_mode == addr_zpg
+        || op.addr_mode == addr_zpg_x || op.addr_mode == addr_zpg_y
+        || op.addr_mode == addr_rel)
+        bytes = 2;
+    else
+        bytes = 3;
+    for (int i = 0; i < bytes; ++i)
+    {
+        fprintf(stream, "%02X ", nes_read(cpu->computer, cpu->last_pc + i));
+    }
+    fprintf(stream, "%*s", (3 - bytes) * 3 + 1, "");
+    
+    // Print the opcode itself.
+    fprintf(stream, "%s ", op.name);
+    if (op.addr_mode == addr_impl)
+        fprintf(stream, "                            ");
+    else if (op.addr_mode == addr_a)
+        fprintf(stream, "A                           ");
+    else if (op.addr_mode == addr_imm)
+        fprintf(stream, "#$%02X                        ", nes_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_abs)
+    {
+        uint8_t lo = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = nes_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "$%04X                       ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_abs_x)
+    {
+        uint8_t lo = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = nes_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "$%04X,X                     ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_abs_y)
+    {
+        uint8_t lo = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = nes_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "$%04X,Y                     ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_zpg)
+        fprintf(stream, "$%02X                         ", nes_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_zpg_x)
+        fprintf(stream, "$%02X,X                       ", nes_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_zpg_y)
+        fprintf(stream, "$%02X,Y                       ", nes_read(cpu->computer, cpu->last_pc + 1));
+    else if (op.addr_mode == addr_ind)
+    {
+        uint8_t lo = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = nes_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "($%04X)                     ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_x_ind)
+    {
+        uint8_t lo = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = nes_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "($%04X,X)                   ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_ind_y)
+    {
+        uint8_t lo = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint8_t hi = nes_read(cpu->computer, cpu->last_pc + 2);
+        fprintf(stream, "($%04X),Y                   ", lo | (hi << 8));
+    }
+    else if (op.addr_mode == addr_rel)
+    {
+        int8_t imm8 = nes_read(cpu->computer, cpu->last_pc + 1);
+        uint16_t address = cpu->last_pc + 2 + imm8;
+        fprintf(stream, "$%02X                       ", address);
+    }
+
+    // Print register information.
+    fprintf(stream, "A:%02X ", cpu->a);
+    fprintf(stream, "X:%02X ", cpu->x);
+    fprintf(stream, "Y:%02X ", cpu->y);
+    fprintf(stream, "P:%02X ", cpu->p);
+    fprintf(stream, "SP:%02X             ", cpu->s);
+
+    // Print the number of enumerated cycles.
+    fprintf(stream, "CYC:%llu", cpu->enumerated_cycles - 7);
+
+    // Finish.
+    fprintf(stream, "\n");
 }

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -35,6 +36,10 @@ struct cpu
     // Interrupts.
     bool irq;               // Must be set to false (i.e. held low) to invoke IRQ.
     bool irq_toggle;        // Only relevant to CLI/SEI/PLP/RTI.
+
+    // Debug information.
+    uint16_t last_pc;
+    uint64_t enumerated_cycles;
 };
 
 // Bind the computer to the CPU.
@@ -57,3 +62,6 @@ struct cpu* cpu_alloc();
 
 // Free a CPU instance.
 void cpu_free(struct cpu* cpu);
+
+// Spew information on the current CPU status.
+void cpu_spew(struct cpu* cpu, FILE* stream);
