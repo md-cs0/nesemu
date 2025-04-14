@@ -13,7 +13,7 @@
 // Map CPU read/write requests.
 static intptr_t cpu_map(struct mapper* mapper, uint16_t address)
 {
-    // Is the address within the range $8000-$FFFF?
+    // $8000-$FFFF: PRG ROM banks.
     if (0x8000 <= address && address <= 0xBFFF)
         return address & ((mapper->prg_rom_banks == 2) ? 0x7FFF : 0x3FFF);
 

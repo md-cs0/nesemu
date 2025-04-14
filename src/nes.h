@@ -12,9 +12,12 @@
 // NES computer struct definition.
 struct nes
 {
+    // Connected hardware.
     struct cpu* cpu;
     struct cartridge* cartridge;
-    uint8_t memory[0x10000]; // THIS IS TEMPORARY!
+
+    // Internal RAM.
+    uint8_t ram[0x0800];
 };
 
 // Set the cartridge of the NES.
