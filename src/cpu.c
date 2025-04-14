@@ -931,8 +931,8 @@ static bool op_inx(struct cpu* cpu)
     cpu->x++;
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
-    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->x & 0x80);
 
     // Return.
     return false;
