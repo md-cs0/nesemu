@@ -1,6 +1,8 @@
 ;  The WOZ Monitor for the Apple 1
 ;  Written by Steve Wozniak in 1976
 
+;  Modified to accept ASCII characters
+
 
 ; Page 0 Variables
 
@@ -32,7 +34,7 @@ RESET:          CLD             ; Clear decimal arithmetic mode.
                 LDA #$A7        ; KBD and DSP control register mask.
                 STA KBDCR       ; Enable interrupts, set CA1, CB1, for
                 STA DSPCR       ;  positive edge sense/output mode.
-NOTCR:          CMP #'_'+$80    ; "_"?
+NOTCR:          CMP #$88        ; Backspace?
                 BEQ BACKSPACE   ; Yes.
                 CMP #$9B        ; ESC?
                 BEQ ESCAPE      ; Yes.

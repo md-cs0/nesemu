@@ -2,7 +2,9 @@
 ; The NES computer struct definition, with the appropriate emulated hardware.
 */
 
+#include <stdio.h>
 #include <memory.h>
+#include <conio.h> // TEMPORARY, I'LL RE-INTRODUCE SDL LATER!
 
 #include "util.h"
 #include "bus.h"
@@ -17,17 +19,29 @@ uint8_t bus_read(struct bus* computer, uint16_t address)
         return computer->program[address & 0xFF];
 
     // Registers.
-    else if (0xD010)
-    {
-        computer->reg.kbdcr_rdy = 0;
-        return computer->reg.buffer[0];
-    }
+    else if (address == 0xD010)
+        return computer->kbd;
     else if (address == 0xD011)
-        return computer->reg.buffer[1];
+    {
+        // If no keys are buffered, ignore.
+        if (computer->buffer_front == NULL)
+            return 0;
+
+        // Dequeue the first buffered key.
+        struct key* temp = computer->buffer_front;
+        computer->kbd = temp->c | 0x80;
+        computer->buffer_front = temp->next;
+        if (computer->buffer_front == NULL)
+            computer->buffer_rear = NULL;
+        free(temp);
+
+        // Return.
+        return 0x80;
+    }
     else if (address == 0xD012)
-        return computer->reg.buffer[2];
+        return computer->dsp;
     else if (address == 0xD013)
-        return computer->reg.buffer[3];
+        return computer->dspcr;
 
     // No address lines?
     assert(false);
@@ -51,25 +65,34 @@ void bus_write(struct bus* computer, uint16_t address, uint8_t byte)
 
     // Registers.
     else if (address == 0xD010)
-    {
-        computer->reg.kbd = byte;
         return;
-    }
     else if (address == 0xD011)
-    {
-        computer->reg.buffer[1] = byte;
         return;
-    }
     else if (address == 0xD012)
     {
-        computer->reg.buffer[2] = byte;
+        // Convert the current byte to an ASCII character.
+        computer->dsp = byte & 0x7F;
+
+        // Handle printing the ASCII character.
+        switch (computer->dsp)
+        {
+        case '\r':
+            putc('\n', stdout);
+            break;
+        case '\b':
+            printf("\b \b");
+            break;
+        case '\x1B':
+            break;
+        default:
+            putc(computer->dsp, stdout);
+            fflush(stdout);
+            break;
+        }
         return;
     }
     else if (address == 0xD013)
-    {
-        computer->reg.buffer[3] = byte;
         return;
-    }
 
     // No address lines?
     assert(false);

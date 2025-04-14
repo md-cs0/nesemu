@@ -8,6 +8,13 @@
 
 #include "cpu.h"
 
+// Key node for the keyboard buffer.
+struct key
+{
+    char c;
+    struct key* next;
+};
+
 // Test 6502 computer bus.
 struct bus
 {
@@ -18,21 +25,15 @@ struct bus
     uint8_t memory[0x4000]; // Basic 16K RAM (should be enough for ZP/SP/input buffer). 
     uint8_t program[0x100]; // Should be large enough to load Wozmon.
 
-    // "Registers".
-    union reg
-    {
-        struct
-        {
-            uint8_t kbd_5v      : 1;
-            uint8_t kbd         : 7;
-            uint8_t kbdcr_rdy   : 1;
-            uint8_t unused      : 7;
-            uint8_t dsp_input   : 1;
-            uint8_t dsp_output  : 7;
-            uint8_t dspcr;
-        };
-        uint8_t buffer[4];
-    } reg;
+    // "Registers" (there isn't really any emphasis on 6820 emulation).
+    uint8_t kbd;
+    uint8_t kbdcr;
+    uint8_t dsp;
+    uint8_t dspcr;
+
+    // Keyboard queue buffer.
+    struct key* buffer_front;
+    struct key* buffer_rear;
 };
 
 // Read a byte from a given address.

@@ -337,8 +337,8 @@ static struct opcode op_lookup[] =
     {"CPY", 2, addr_imm,   op_cpy},
     {"CMP", 6, addr_x_ind, op_cmp},
     {"???", 0, NULL,       NULL},
-    {"CPY", 3, addr_zpg,   op_cpy},
     {"???", 0, NULL,       NULL},
+    {"CPY", 3, addr_zpg,   op_cpy},
     {"CMP", 3, addr_zpg,   op_cmp},
     {"DEC", 5, addr_zpg,   op_dec},
     {"???", 0, NULL,       NULL},
@@ -451,7 +451,7 @@ static bool addr_abs_y(struct cpu* cpu)
     uint8_t lo = bus_read(cpu->computer, cpu->pc++);
     uint8_t hi = bus_read(cpu->computer, cpu->pc++);
     uint16_t addr = lo | (hi << 8);
-    cpu->addr_fetched = addr + cpu->x;
+    cpu->addr_fetched = addr + cpu->y;
     return ((addr & 0xFF) + cpu->x) > 0xFF;
 }
 
@@ -497,13 +497,11 @@ static bool addr_ind(struct cpu* cpu)
 static bool addr_x_ind(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = bus_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = bus_read(cpu->computer, cpu->pc++);
-    uint16_t ptr = ptr_lo | (ptr_hi << 8) + cpu->x;
+    uint8_t ptr = bus_read(cpu->computer, cpu->pc++) + cpu->x;
 
     // Get the address at the pointer.
-    uint8_t lo = bus_read(cpu->computer, ptr);
-    uint8_t hi = bus_read(cpu->computer, ptr + 1);
+    uint8_t lo = bus_read(cpu->computer, ptr & 0xFF);
+    uint8_t hi = bus_read(cpu->computer, (ptr + 1) & 0xFF);
     cpu->addr_fetched = lo | (hi << 8);
     return false;
 }
@@ -512,13 +510,11 @@ static bool addr_x_ind(struct cpu* cpu)
 static bool addr_ind_y(struct cpu* cpu)
 {
     // Read the pointer.
-    uint8_t ptr_lo = bus_read(cpu->computer, cpu->pc++);
-    uint8_t ptr_hi = bus_read(cpu->computer, cpu->pc++);
-    uint16_t ptr = ptr_lo | (ptr_hi << 8);
+    uint8_t ptr = bus_read(cpu->computer, cpu->pc++);
 
     // Get the address at the pointer.
     uint8_t lo = bus_read(cpu->computer, ptr);
-    uint8_t hi = bus_read(cpu->computer, ptr + 1);
+    uint8_t hi = bus_read(cpu->computer, (ptr + 1) & 0xFF);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->y;
     return ((addr & 0xFF) + cpu->y) > 0xFF;
@@ -569,7 +565,7 @@ static bool op_adc(struct cpu* cpu)
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_C, result > 0xFF);
     cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
-    cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
+    cpu_setflag(cpu, CPUFLAG_V, ((result ^ cpu->a) & (result ^ memory)) & 0x80);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
 
     // Set the new accumulator value.
@@ -875,8 +871,8 @@ static bool op_dex(struct cpu* cpu)
     cpu->x--;
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, cpu->y == 0);
-    cpu_setflag(cpu, CPUFLAG_N, cpu->y & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->x == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->x & 0x80);
 
     // Return.
     return false;
@@ -901,15 +897,13 @@ static bool op_dey(struct cpu* cpu)
 static bool op_eor(struct cpu* cpu)
 {
     // Calculate the new accumulator value.
-    uint8_t memory = bus_read(cpu->computer, cpu->addr_fetched);
-    uint8_t result = cpu->a ^ memory;
+    cpu->a ^= bus_read(cpu->computer, cpu->addr_fetched);
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_Z, result == 0);
-    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+    cpu_setflag(cpu, CPUFLAG_Z, cpu->a == 0);
+    cpu_setflag(cpu, CPUFLAG_N, cpu->a & 0x80);
 
-    // Set the new accumulator value.
-    cpu->a = result;
+    // Return.
     return true;
 }
 
@@ -1182,7 +1176,7 @@ static bool op_sbc(struct cpu* cpu)
     uint16_t result = cpu->a + memory + cpu_getflag(cpu, CPUFLAG_C);
 
     // Calculate the new flags.
-    cpu_setflag(cpu, CPUFLAG_C, result < 0x00);
+    cpu_setflag(cpu, CPUFLAG_C, result & 0xFF00);
     cpu_setflag(cpu, CPUFLAG_Z, (result & 0xFF) == 0);
     cpu_setflag(cpu, CPUFLAG_V, (result ^ cpu->a) & (result ^ memory) & 0x80);
     cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
