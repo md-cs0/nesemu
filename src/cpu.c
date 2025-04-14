@@ -669,8 +669,8 @@ static bool op_bit(struct cpu* cpu)
 
     // Calculate the new flags.
     cpu_setflag(cpu, CPUFLAG_Z, result == 0);
-    cpu_setflag(cpu, CPUFLAG_V, result & 0x40);
-    cpu_setflag(cpu, CPUFLAG_N, result & 0x80);
+    cpu_setflag(cpu, CPUFLAG_V, memory & 0x40);
+    cpu_setflag(cpu, CPUFLAG_N, memory & 0x80);
 
     // Return.
     return false;
