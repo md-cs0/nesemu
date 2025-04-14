@@ -452,7 +452,7 @@ static bool addr_abs_y(struct cpu* cpu)
     uint8_t hi = nes_read(cpu->computer, cpu->pc++);
     uint16_t addr = lo | (hi << 8);
     cpu->addr_fetched = addr + cpu->y;
-    return ((addr & 0xFF) + cpu->x) > 0xFF;
+    return ((addr & 0xFF) + cpu->y) > 0xFF;
 }
 
 // Zero page: fetch the value from address & 0xFF.
@@ -1443,6 +1443,7 @@ void cpu_spew(struct cpu* cpu, uint16_t pc, FILE* stream)
         bytes = 1;
     else if (op.addr_mode == addr_imm || op.addr_mode == addr_zpg
         || op.addr_mode == addr_zpg_x || op.addr_mode == addr_zpg_y
+        || op.addr_mode == addr_x_ind || op.addr_mode == addr_ind_y
         || op.addr_mode == addr_rel)
         bytes = 2;
     else
@@ -1492,17 +1493,9 @@ void cpu_spew(struct cpu* cpu, uint16_t pc, FILE* stream)
         fprintf(stream, "($%04X)                     ", lo | (hi << 8));
     }
     else if (op.addr_mode == addr_x_ind)
-    {
-        uint8_t lo = nes_read(cpu->computer, pc + 1);
-        uint8_t hi = nes_read(cpu->computer, pc + 2);
-        fprintf(stream, "($%04X,X)                   ", lo | (hi << 8));
-    }
+        fprintf(stream, "($%02X,X)                     ", nes_read(cpu->computer, pc + 1));
     else if (op.addr_mode == addr_ind_y)
-    {
-        uint8_t lo = nes_read(cpu->computer, pc + 1);
-        uint8_t hi = nes_read(cpu->computer, pc + 2);
-        fprintf(stream, "($%04X),Y                   ", lo | (hi << 8));
-    }
+        fprintf(stream, "($%02X),Y                     ", nes_read(cpu->computer, pc + 1));
     else if (op.addr_mode == addr_rel)
     {
         int8_t imm8 = nes_read(cpu->computer, pc + 1);
