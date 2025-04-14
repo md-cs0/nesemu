@@ -14,7 +14,7 @@
 static intptr_t cpu_map(struct mapper* mapper, uint16_t address)
 {
     // $8000-$FFFF: PRG ROM banks.
-    if (0x8000 <= address && address <= 0xBFFF)
+    if (0x8000 <= address && address <= 0xFFFF)
         return address & ((mapper->prg_rom_banks == 2) ? 0x7FFF : 0x3FFF);
 
     // The address has not been mapped to internal cartridge data.

@@ -361,7 +361,7 @@ static struct opcode op_lookup[] =
     {"DEC", 6, addr_zpg_x, op_dec},
     {"???", 0, NULL,       NULL},
     {"CLD", 2, addr_impl,  op_cld},
-    {"CMP", 4, addr_zpg_y, op_cmp},
+    {"CMP", 4, addr_abs_y, op_cmp},
     {"???", 0, NULL,       NULL},
     {"???", 0, NULL,       NULL},
     {"???", 0, NULL,       NULL},
@@ -1509,7 +1509,7 @@ void cpu_spew(struct cpu* cpu, FILE* stream)
     fprintf(stream, "SP:%02X             ", cpu->s);
 
     // Print the number of enumerated cycles.
-    fprintf(stream, "CYC:%llu", cpu->enumerated_cycles - 7);
+    fprintf(stream, "CYC:%llu", cpu->enumerated_cycles - 1);
 
     // Finish.
     fprintf(stream, "\n");

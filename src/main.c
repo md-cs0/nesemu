@@ -139,8 +139,15 @@ int main(int argc, char** argv)
     }
     nes_setcartridge(display.computer, display.cartridge);
     cpu_setnes(display.computer->cpu, display.computer);
+    cpu_reset(display.computer->cpu);
+
+    // NESTEST.NES DEBUG
+    display.computer->cpu->pc = 0xC000;
+    bool hit_0 = true;
+    FILE* my_log = fopen("my.log", "w");
 
     // Start the main event loop.
+    uint64_t cycles = 0;
     SDL_AddEventWatch(watcher, NULL);
     atexit(process_exit);
     for (;;)
@@ -155,6 +162,23 @@ int main(int argc, char** argv)
                 goto quit;
             }
         }
+
+        // Execute a CPU cycle every 3 PPU cycles.
+        if (cycles % 3 == 0)
+        {
+            cpu_clock(display.computer->cpu);
+
+            // DEBUG
+            if (hit_0 && display.computer->cpu->enumerated_cycles > 7)
+            {
+                cpu_spew(display.computer->cpu, my_log);
+                fflush(my_log);
+                hit_0 = false;
+            }
+            else if (!display.computer->cpu->cycles)
+                hit_0 = true;
+        }
+        cycles++;
 
         // Update the buffer and re-render it.
         //SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(SDL_Color));
