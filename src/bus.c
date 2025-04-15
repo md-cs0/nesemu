@@ -43,8 +43,7 @@ uint8_t bus_read(struct bus* computer, uint16_t address)
     else if (address == 0xD013)
         return computer->dspcr;
 
-    // No address lines?
-    assert(false);
+    // Open bus.
     return 0;
 }
 
@@ -94,8 +93,7 @@ void bus_write(struct bus* computer, uint16_t address, uint8_t byte)
     else if (address == 0xD013)
         return;
 
-    // No address lines?
-    assert(false);
+    // Open bus.
 }
 
 // Write a program into memory.

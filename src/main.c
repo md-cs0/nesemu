@@ -11,6 +11,39 @@
 #include "util.h"
 #include "bus.h"
 
+// Process key input.
+void process_input(struct bus* computer, SDL_Keycode c, uint16_t mod)
+{
+    // Only accept this if this is an ASCII character.
+    if (c >= 0x80)
+        return;
+
+    // Capitalize the character if it is a letter.
+    if ('a' <= c && c <= 'z')
+        c &= ~0b00100000;
+
+    // If CTRL+V was pressed, copy from clipboard.
+    if (c == 'V' && mod & KMOD_CTRL)
+    {
+        for (char* str = SDL_GetClipboardText(); *str != '\0'; str++)
+            process_input(computer, *str, mod & KMOD_SHIFT);
+        return;
+    }
+
+    // If shift is held, send a colon instead of a semi-colon.
+    if (c == ';' && mod & KMOD_SHIFT)
+        c = ':';
+
+    // Queue the given input.
+    struct key* key = safe_malloc(sizeof(struct key));
+    key->c = c;
+    if (computer->buffer_front == NULL)
+        computer->buffer_front = key;
+    if (computer->buffer_rear != NULL)
+        computer->buffer_rear->next = key;
+    computer->buffer_rear = key;
+}
+
 // Top-level function.
 int main(int argc, char** argv)
 {
@@ -70,35 +103,12 @@ int main(int argc, char** argv)
 
             // Check for the keydown event.
             case SDL_KEYDOWN:
-            {
-                // Read the given input. Only accept it if this is an ASCII character.
-                SDL_Keycode c = event.key.keysym.sym;
-                if (c < 0x80)
-                {
-                    // Capitalize the character if it is a letter.
-                    if ('a' <= c && c <= 'z')
-                        c &= ~0b00100000;
-
-                    // If shift is held, send a colon instead of a semi-colon.
-                    if (c == ';' && event.key.keysym.mod & KMOD_SHIFT)
-                        c = ':';
-
-                    // Queue the given input.
-                    struct key* key = safe_malloc(sizeof(struct key));
-                    key->c = c;
-                    if (computer->buffer_front == NULL)
-                        computer->buffer_front = key;
-                    if (computer->buffer_rear != NULL)
-                        computer->buffer_rear->next = key;
-                    computer->buffer_rear = key;
-                }
-            }
+                process_input(computer, event.key.keysym.sym, event.key.keysym.mod);
+                break;
             }
         }
 
         // Execute a new CPU clock cycle.
-        //if (!computer->cpu->cycles && computer->cpu->enumerated_cycles > 7)
-        //    cpu_spew(computer->cpu, stdout);
         cpu_clock(computer->cpu);
     }
 
