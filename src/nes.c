@@ -38,7 +38,7 @@ uint8_t nes_read(struct nes* computer, uint16_t address)
 // Write a byte to a given address.
 void nes_write(struct nes* computer, uint16_t address, uint8_t byte)
 {
-    // Attempt to write to the cartridge. Usually $4020-$FFFF.
+    // Attempt to write to the cartridge. Usually $0000-$1FFF.
     if (cartridge_cpu_write(computer->cartridge, address, byte))
         return;
 
@@ -60,9 +60,18 @@ void nes_write(struct nes* computer, uint16_t address, uint8_t byte)
 // Create a new NES computer instance.
 struct nes* nes_alloc()
 {
+    // Allocate a new NES computer instance.
     struct nes* computer = safe_malloc(sizeof(struct nes));
+
+    // Create the NES computer's CPU.
     computer->cpu = cpu_alloc();
+    cpu_setnes(computer->cpu, computer);
+
+    // Create the NES computer's PPU.
     computer->ppu = ppu_alloc();
+    ppu_setnes(computer->ppu, computer);
+
+    // Return the NES computer.
     return computer;
 }
 

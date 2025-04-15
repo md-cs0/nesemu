@@ -7,9 +7,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "constants.h"
 #include "util.h"
 #include "cartridge.h"
-
 #include "mappers_nrom.h"
 
 #define INES_MAGIC 0x1A53454E
@@ -23,7 +23,7 @@ struct ines_header
     uint8_t chr_rom_size;       // in 8KB units (if present, but CHR RAM is not currently emulated)
     
     // Flags 6.
-    uint8_t mirror      : 1;    // 0: horizontal mirroed, 1: vertically mirrored
+    uint8_t mirror      : 1;    // 0: horizontal mirrored, 1: vertically mirrored
     uint8_t has_prg_ram : 1;    // 0: no prg ram, 1: has prg ram (not currently emulated)
     uint8_t has_trainer : 1;    // 0: no 512-byte trainer, 1: has trainer (not currently emulated)
     uint8_t nt_layout   : 1;    // if 1, use alternative nametable layout (not currently emulated)
@@ -49,23 +49,40 @@ struct ines_header
     uint8_t padding2[5];
 };
 
-// Read per CPU request.
-bool cartridge_cpu_read(struct cartridge* cartridge, uint16_t address, uint8_t* read)
+// Return the current nametable mirroring used.
+enum mirror_type cartridge_mirror_type(struct cartridge* cartridge)
 {
-    // Check if the cartridge mapper returns a mapped address.
-    intptr_t mapped_address = cartridge->mapper->cpu_read(cartridge->mapper, address);
-    if (mapped_address == UNMAPPED)
-        return false;
+    // Request the mapper for the mirror type first.
+    enum mirror_type mirror_type = cartridge->mapper->mirror_type(cartridge->mapper);
+    if (mirror_type != MIRROR_CARTRIDGE)
+        return mirror_type;
 
-    // Read from the given mapped address.
-    *read = cartridge->prg_rom[mapped_address];
-    return true;
+    // Use the mirror type defined by this cartridge.
+    return cartridge->mirror_type;
+}
+
+// Read per CPU request.
+bool cartridge_cpu_read(struct cartridge* cartridge, uint16_t address, uint8_t* byte)
+{
+    return cartridge->mapper->cpu_read(cartridge->mapper, address, byte);
 }
 
 // Write per CPU request.
-bool cartridge_cpu_write(struct cartridge* cartridge, uint16_t address, uint8_t data)
+bool cartridge_cpu_write(struct cartridge* cartridge, uint16_t address, uint8_t byte)
 {
-    return false;
+    return cartridge->mapper->cpu_write(cartridge->mapper, address, byte);
+}
+
+// Read per PPU request.
+bool cartridge_ppu_read(struct cartridge* cartridge, uint16_t address, uint8_t* byte)
+{
+    return cartridge->mapper->ppu_read(cartridge->mapper, address, byte);
+}
+
+// Write per PPU request.
+bool cartridge_ppu_write(struct cartridge* cartridge, uint16_t address, uint8_t byte)
+{
+    return cartridge->mapper->ppu_write(cartridge->mapper, address, byte);
 }
 
 // Create a new cartridge instance.
@@ -103,6 +120,9 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
     cartridge->chr_rom = safe_malloc(cartridge->chr_rom_size);
     memcpy(cartridge->chr_rom, ines_data + offset, cartridge->chr_rom_size);
 
+    // Set the cartridge's mirror type.
+    cartridge->mirror_type = (enum mirror_type)header->mirror; 
+
     // Initialize the mapper.
     enum mappers mapper_id = header->mapper_lo | (header->mapper_hi << 4);
     switch (mapper_id)
@@ -117,6 +137,8 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
     }
     cartridge->mapper->prg_rom_banks = header->prg_rom_size;
     cartridge->mapper->chr_rom_banks = header->chr_rom_size;
+    cartridge->mapper->cartridge = cartridge;
+    cartridge->mapper->mapper_id = mapper_id;
 
     // Return the cartridge.
     return cartridge;

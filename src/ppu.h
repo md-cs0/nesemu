@@ -13,11 +13,29 @@
 // Forward the computer struct.
 struct nes;
 
+// Internal VRAM address register union.
+union internal_vram_register
+{
+    struct
+    {
+        uint8_t coarse_x_scroll         : 5;    // coarse X scroll
+        uint8_t coarse_y_scroll         : 5;    // coarse Y scroll
+        uint8_t nametable_sleect        : 2;    // nametable select
+        uint8_t fine_y_scroll           : 3;    // fine Y scroll
+        uint8_t padding                 : 1;    // unused bit 15
+    } vars;
+    uint16_t reg;
+};
+
 // PPU struct definition.
 struct ppu
 {
     // Bind the computer to the PPU.
     struct nes* computer;
+
+    // PPU RAM.
+    uint8_t palette_ram[0x20];
+    uint8_t vram[0x800];
 
     // Register - PPUCTRL ($2000 write)
     union
@@ -73,13 +91,30 @@ struct ppu
     uint8_t ppudata;                                // PPUDATA - VRAM data ($2007 read/write)
     uint8_t oamdma;                                 // OAMDMA - sprite direct memory access ($4014 write)
 
-    // Register latches.
-    bool ppuscroll_latch;
-    bool ppuaddr_latch;
+    // Internal registers.
+    union internal_vram_register v;                 // current VRAM address
+    union internal_vram_register t;                 // temporary VRAM address or of top-left onscreen tile
+    uint8_t x                               : 3;    // fine X scroll
+    bool w                                  : 1;    // $2005/$2006 write latch.
+
+    // Debug information.
+    uint64_t enumerated_cycles;
 };
+
+// Bind the computer to the PPU.
+inline void ppu_setnes(struct ppu* ppu, struct nes* computer)
+{
+    ppu->computer = computer;
+}
 
 // Reset the PPU.
 void ppu_reset(struct ppu* ppu);
+
+// Read a byte from a given address on the internal PPU bus.
+uint8_t ppu_bus_read(struct ppu* ppu, uint16_t address);
+
+// Write a byte to a given address on the internal PPU bus.
+void ppu_bus_write(struct ppu* ppu, uint16_t address, uint8_t byte);
 
 // Handle CPU read requests from the PPU here.
 uint8_t ppu_cpu_read(struct ppu* ppu, uint16_t address);

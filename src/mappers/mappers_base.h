@@ -7,21 +7,35 @@
 
 #include <stdint.h>
 
-#define UNMAPPED (intptr_t)(-1)
+#include "constants.h"
+#include "cartridge.h"
+
+// Forward the cartridge struct.
+struct cartridge;
 
 // Mapper struct definition.
 struct mapper
 {
+    // Bind the cartridge to the mapper.
+    struct cartridge* cartridge;
+
+    // Mapper ID.
+    enum mappers mapper_id;
+    
     // CHR/PRG ROM banks.
     size_t prg_rom_banks;
     size_t chr_rom_banks;
 
     // CPU mapping functions.
-    intptr_t (*cpu_read)(struct mapper* mapper, uint16_t address);
-    intptr_t (*cpu_write)(struct mapper* mapper, uint16_t address);
+    bool (*cpu_read)(struct mapper* mapper, uint16_t address, uint8_t* byte);
+    bool (*cpu_write)(struct mapper* mapper, uint16_t address, uint8_t byte);
 
     // PPU mapping functions.
-    // TODO
+    bool (*ppu_read)(struct mapper* mapper, uint16_t address, uint8_t* byte);
+    bool (*ppu_write)(struct mapper* mapper, uint16_t address, uint8_t byte);
+
+    // Mapper mirror type.
+    enum mirror_type (*mirror_type)(struct mapper* mapper);
 
     // Memory de-allocation.
     void (*free)(void* mapper);

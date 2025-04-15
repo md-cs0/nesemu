@@ -7,13 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "constants.h"
 #include "mappers_base.h"
-
-// A list of supported mappers.
-enum mappers
-{
-    MAPPER_NROM = 0
-};
 
 // NES cartridge struct definition.
 struct cartridge
@@ -24,15 +19,27 @@ struct cartridge
     size_t prg_rom_size;    // 16384 * x bytes
     size_t chr_rom_size;    // 8192 * y bytes
 
+    // Mirror type.
+    enum mirror_type mirror_type;
+
     // Mapper.
     struct mapper* mapper;
 };
 
+// Return the current nametable mirroring used.
+enum mirror_type cartridge_mirror_type(struct cartridge* cartridge);
+
 // Read per CPU request.
-bool cartridge_cpu_read(struct cartridge* cartridge, uint16_t address, uint8_t* read);
+bool cartridge_cpu_read(struct cartridge* cartridge, uint16_t address, uint8_t* byte);
 
 // Write per CPU request.
-bool cartridge_cpu_write(struct cartridge* cartridge, uint16_t address, uint8_t data);
+bool cartridge_cpu_write(struct cartridge* cartridge, uint16_t address, uint8_t byte);
+
+// Read per PPU request.
+bool cartridge_ppu_read(struct cartridge* cartridge, uint16_t address, uint8_t* byte);
+
+// Write per PPU request.
+bool cartridge_ppu_write(struct cartridge* cartridge, uint16_t address, uint8_t byte);
 
 // Create a new cartridge instance.
 struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size);

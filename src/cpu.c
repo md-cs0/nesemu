@@ -1345,6 +1345,9 @@ static void cpu_irq(struct cpu* cpu)
 // are not pushed onto the stack.
 void cpu_reset(struct cpu* cpu)
 {
+    // Reset the enumerated cycles count.
+    cpu->enumerated_cycles = 0;
+
     // Hack the stack pointer to be S - 3.
     cpu->s -= 3;
 
