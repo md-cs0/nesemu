@@ -93,7 +93,7 @@ static int watcher(void* userdata, SDL_Event* event)
 int main(int argc, char** argv)
 {
     // Before anything is initialized, the cartridge file should be read into
-    // memory first.
+    // memory first. Check if it actually exists first.
     if (argc < 2)
         goto no_cartridge;
     uint8_t* ines_data;
@@ -101,6 +101,8 @@ int main(int argc, char** argv)
     FILE* ines = fopen(argv[1], "rb");
     if (ines == NULL)
         goto no_cartridge;
+
+    // Read from the cartridge file into memory.
     fseek(ines, 0, SEEK_END);
     ines_size = ftell(ines);
     ines_data = safe_malloc(ines_size);
@@ -141,10 +143,6 @@ int main(int argc, char** argv)
     cpu_setnes(display.computer->cpu, display.computer);
     cpu_reset(display.computer->cpu);
 
-    // NESTEST.NES DEBUG
-    display.computer->cpu->pc = 0xC000;
-    FILE* my_log = fopen("../old/nestest/my.log", "w");
-
     // Start the main event loop.
     uint64_t cycles = 0;
     SDL_AddEventWatch(watcher, NULL);
@@ -164,16 +162,7 @@ int main(int argc, char** argv)
 
         // Execute a CPU cycle every 3 PPU cycles.
         if (cycles % 3 == 0)
-        {
-            // DEBUG
-            if (display.computer->cpu->cycles == 0 && display.computer->cpu->enumerated_cycles >= 7)
-            {
-                cpu_spew(display.computer->cpu, display.computer->cpu->pc, my_log);
-                fflush(my_log);
-            }
-
             cpu_clock(display.computer->cpu);
-        }
         cycles++;
 
         // Update the buffer and re-render it.
