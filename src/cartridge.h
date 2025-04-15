@@ -1,5 +1,5 @@
 /*
-; NES cartridge with basic iNES binary format support.
+; Game Pak NES cartridge with basic iNES binary format support.
 */
 
 #pragma once

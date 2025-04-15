@@ -14,6 +14,7 @@ struct nes
 {
     // Connected hardware.
     struct cpu* cpu;
+    struct ppu* ppu;
     struct cartridge* cartridge;
 
     // Internal RAM.
@@ -25,6 +26,9 @@ inline void nes_setcartridge(struct nes* computer, struct cartridge* cartridge)
 {
     computer->cartridge = cartridge;
 }
+
+// Reset the NES.
+void nes_reset(struct nes* computer);
 
 // Read a byte from a given address.
 uint8_t nes_read(struct nes* computer, uint16_t address);

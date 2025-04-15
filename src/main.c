@@ -141,7 +141,7 @@ int main(int argc, char** argv)
     }
     nes_setcartridge(display.computer, display.cartridge);
     cpu_setnes(display.computer->cpu, display.computer);
-    cpu_reset(display.computer->cpu);
+    nes_reset(display.computer);
 
     // Start the main event loop.
     uint64_t cycles = 0;

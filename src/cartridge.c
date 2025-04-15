@@ -1,5 +1,5 @@
 /*
-; NES cartridge using the iNES binary format.
+; Game Pak NES cartridge using the iNES binary format.
 */
 
 #include <stdio.h>

@@ -1,6 +1,6 @@
 add_subdirectory(mappers)
 
-add_executable(nesemu "main.c" "util.c" "nes.c" "cpu.c" "cartridge.c")
+add_executable(nesemu "main.c" "util.c" "nes.c" "cpu.c" "ppu.c" "cartridge.c")
 target_include_directories(nesemu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(nesemu PUBLIC nesemu_mappers)
