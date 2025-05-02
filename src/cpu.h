@@ -11,9 +11,6 @@
 
 #include "nes.h"
 
-// Forward the computer struct.
-struct nes;
-
 // CPU struct definition.
 struct cpu
 {
@@ -34,8 +31,12 @@ struct cpu
     uint16_t addr_fetched;
 
     // Interrupts.
+    bool nmi;               // Must be set to false (i.e. held low) to invoke NMI. Because this is
+                            // edge-sensitive, it must be set to true (i.e. held high) afterwards
+                            // before triggering another NMI.
     bool irq;               // Must be set to false (i.e. held low) to invoke IRQ.
     bool irq_toggle;        // Only relevant to CLI/SEI/PLP/RTI.
+    bool nmi_toggle;        // Internal.
 
     // Debug information.
     uint64_t enumerated_cycles;
@@ -49,9 +50,6 @@ inline void cpu_setnes(struct cpu* cpu, struct nes* computer)
 
 // Reset the CPU.
 void cpu_reset(struct cpu* cpu);
-
-// Trigger a non-maskable interrupt (falling edge-sensitive).
-void cpu_nmi(struct cpu* cpu);
 
 // Execute a CPU clock.
 void cpu_clock(struct cpu* cpu);

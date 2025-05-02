@@ -10,8 +10,14 @@
 
 #include "nes.h"
 
-// Forward the computer struct.
-struct nes;
+// ABGR8888 colour type, so that the NES code is independent of SDL.
+struct agbr8888
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
+};
 
 // Internal VRAM address register union.
 union internal_vram_register
@@ -20,7 +26,7 @@ union internal_vram_register
     {
         uint8_t coarse_x_scroll         : 5;    // coarse X scroll
         uint8_t coarse_y_scroll         : 5;    // coarse Y scroll
-        uint8_t nametable_sleect        : 2;    // nametable select
+        uint8_t nametable_select        : 2;    // nametable select
         uint8_t fine_y_scroll           : 3;    // fine Y scroll
         uint8_t padding                 : 1;    // unused bit 15
     } vars;
@@ -54,6 +60,7 @@ struct ppu
     } ppuctrl;
 
     // Register - PPUMASK ($2001 write)
+    // Rendering is assumed to be disabled if both bits 3 and 4 are 0.
     union
     {
         struct
@@ -91,11 +98,15 @@ struct ppu
     uint8_t ppudata;                                // PPUDATA - VRAM data ($2007 read/write)
     uint8_t oamdma;                                 // OAMDMA - sprite direct memory access ($4014 write)
 
-    // Internal registers.
+    // Internal registers (used for scrolling)
     union internal_vram_register v;                 // current VRAM address
     union internal_vram_register t;                 // temporary VRAM address or of top-left onscreen tile
     uint8_t x                               : 3;    // fine X scroll
     bool w                                  : 1;    // $2005/$2006 write latch.
+
+    // Timing information.
+    int16_t cycle;
+    int16_t scanline;
 
     // Debug information.
     uint64_t enumerated_cycles;
@@ -121,6 +132,9 @@ uint8_t ppu_cpu_read(struct ppu* ppu, uint16_t address);
 
 // Handle CPU write requests to the PPU here.
 void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte);
+
+// Execute a PPU clock.
+void ppu_clock(struct ppu* ppu);
 
 // Create a new PPU instance. The PPU must be reset before used.
 struct ppu* ppu_alloc();

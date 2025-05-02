@@ -159,13 +159,15 @@ int main(int argc, char** argv)
             }
         }
 
-        // Execute a CPU cycle every 3 PPU cycles.
-        if (cycles % 3 == 0)
+        // Clock the CPU and PPU per the master clock.
+        if (cycles % 12 == 0)
             cpu_clock(display.computer->cpu);
+        if (cycles % 4 == 0)
+            ppu_clock(display.computer->ppu);
         cycles++;
 
         // Update the buffer and re-render it.
-        //SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(SDL_Color));
+        //SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(agbr8888));
         update_render();
     }
 

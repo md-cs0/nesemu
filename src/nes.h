@@ -8,6 +8,7 @@
 
 #include "cartridge.h"
 #include "cpu.h"
+#include "ppu.h"
 
 // NES computer struct definition.
 struct nes

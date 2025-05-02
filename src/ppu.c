@@ -9,15 +9,6 @@
 #include "util.h"
 #include "ppu.h"
 
-// ABGR8888 colour type, so that the NES code is independent of SDL.
-struct agbr8888
-{
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t a;
-};
-
 // Ricoh 2C02 palette table (ABGR8888).
 static struct agbr8888 palette_lookup[] =
 {    // 0x00 - 0x0F
@@ -93,6 +84,39 @@ static struct agbr8888 palette_lookup[] =
     {0x00, 0x00, 0x00, 0xFF}
 };
 
+// Is rendering enabled?
+static inline bool ppu_isrendering(struct ppu* ppu)
+{
+    return ppu->ppumask.vars.background_rendering || ppu->ppumask.vars.sprite_rendering;
+}
+
+// Increment the coarse X scroll component of v. If coarse X == 31,
+// switch the horizontal nametable.
+static void coarse_x_increment(struct ppu* ppu)
+{
+    if (ppu->v.vars.coarse_x_scroll == 0b11111)
+        ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b01;
+    ppu->v.vars.coarse_x_scroll++;
+}
+
+// Increment the fine y scroll component of V. If fine y == 7 and
+// coarse y == 29, switch the vertical nametable (29 specifically due to
+// row 29 being the last row of tiles in a nametable).)
+static void fine_y_increment(struct ppu* ppu)
+{
+    if (ppu->v.vars.fine_y_scroll == 0b111)
+    {
+        if (ppu->v.vars.coarse_y_scroll == 29)
+        {
+            ppu->v.vars.coarse_y_scroll = 0;
+            ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
+        }
+        else
+            ppu->v.vars.coarse_y_scroll++;
+    }
+    ppu->v.vars.fine_y_scroll++;
+}
+
 // Internal address mapping for accessing the PPU's VRAM for nametable accessing
 // depending on the given mapper's mirror type.
 static uint16_t vram_mirror(struct ppu* ppu, uint16_t address)
@@ -118,8 +142,10 @@ static uint16_t vram_mirror(struct ppu* ppu, uint16_t address)
 // Reset the PPU.
 void ppu_reset(struct ppu* ppu)
 {
-    // Reset the enumerated cycles count.
+    // Reset the timing information.
     ppu->enumerated_cycles = 0;
+    ppu->cycle = 0;
+    ppu->scanline = -1;
 
     // Clear public registers.
     ppu->ppuctrl.reg = 0x00;
@@ -205,6 +231,7 @@ uint8_t ppu_cpu_read(struct ppu* ppu, uint16_t address)
     // PPUSTATUS
     case 0x0002:
     {
+        ppu->w = false;
         return 0;
     }
     
@@ -235,6 +262,7 @@ void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte)
     // PPUCTRL
     case 0x0000:
     {
+        ppu->t.vars.nametable_select = byte & 0b11;
         return;
     }
 
@@ -259,12 +287,31 @@ void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte)
     // PPUSCROLL
     case 0x0005:
     {
+        if (ppu->w)
+        {
+            ppu->t.vars.coarse_y_scroll = (byte >> 3) & 0b11111;
+            ppu->t.vars.fine_y_scroll = byte & 0b111;
+        }
+        else
+        {
+            ppu->t.vars.coarse_x_scroll = (byte >> 3) & 0b11111;
+            ppu->x = byte & 0b111;
+        }        
+        ppu->w = !ppu->w;
         return;
     }
 
     // PPUADDR
     case 0x0006:
     {
+        if (ppu->w)
+        {
+            ppu->t.reg = (ppu->t.reg & 0xFF00) | byte;
+            ppu->v.reg = ppu->t.reg;
+        }
+        else
+            ppu->t.reg = (ppu->t.reg & 0xFF) | (((byte >> 2) & 0b111111) << 8); // bit 14 is cleared
+        ppu->w = !ppu->w;
         return;
     }
 
@@ -276,6 +323,13 @@ void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte)
     }
 
     // Open bus.
+}
+
+// Execute a PPU clock.
+void ppu_clock(struct ppu* ppu)
+{
+    // Increment the total number of cycles.
+    ppu->enumerated_cycles++;
 }
 
 // Create a new PPU instance. The PPU must be reset before used.

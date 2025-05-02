@@ -1338,6 +1338,23 @@ static void cpu_irq(struct cpu* cpu)
     cpu->cycles = 7;
 }
 
+// Trigger a non-maskable interrupt (falling edge-sensitive).
+static void cpu_nmi(struct cpu* cpu)
+{
+    // Push the PC and processor status.
+    cpu_push(cpu, cpu->pc >> 8);
+    cpu_push(cpu, cpu->pc);
+    cpu_push(cpu, cpu->p);
+
+    // Fetch the new PC.
+    cpu->pc = NMI_VECTOR;
+    addr_abs(cpu);
+    cpu->pc = cpu->addr_fetched;
+
+    // Wait 7 cycles.
+    cpu->cycles = 7;
+}
+
 // Reset the CPU. Because the RESET sequence is the hardware just forcing in a
 // software BRK, the PC/processor status write sequences are still present, meaning
 // the stack pointer still decrements by 3. However, the R/W line is held high,
@@ -1363,23 +1380,6 @@ void cpu_reset(struct cpu* cpu)
     cpu->cycles = 7;
 }
 
-// Trigger a non-maskable interrupt (falling edge-sensitive).
-void cpu_nmi(struct cpu* cpu)
-{
-    // Push the PC and processor status.
-    cpu_push(cpu, cpu->pc >> 8);
-    cpu_push(cpu, cpu->pc);
-    cpu_push(cpu, cpu->p);
-
-    // Fetch the new PC.
-    cpu->pc = NMI_VECTOR;
-    addr_abs(cpu);
-    cpu->pc = cpu->addr_fetched;
-
-    // Wait 7 cycles.
-    cpu->cycles = 7;
-}
-
 // Execute a CPU clock.
 void cpu_clock(struct cpu* cpu)
 {
@@ -1401,6 +1401,14 @@ void cpu_clock(struct cpu* cpu)
         return;
     }
     cpu->irq_toggle = cpu_getflag(cpu, CPUFLAG_I);
+
+    // If the NMI signal is held low and was previously high, trigger a NMI.
+    if (!cpu->nmi && cpu->nmi_toggle)
+    {
+        cpu_nmi(cpu);
+        return;
+    }
+    cpu->nmi_toggle = cpu->nmi;
     
     // Seems like we are ready to execute a new instruction. Read the given
     // opcode data.
@@ -1426,6 +1434,7 @@ struct cpu* cpu_alloc()
     cpu->p = 0b00100100;
     cpu->pc = RESET_VECTOR;
     cpu->irq = true;
+    cpu->nmi = cpu->nmi_toggle = true;
     return cpu;
 }
 
