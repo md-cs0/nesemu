@@ -20,6 +20,13 @@ struct nes
 
     // Internal RAM.
     uint8_t ram[0x0800];
+
+    // NES clock.
+    uint64_t cycles;
+
+    // OAM.
+    uint8_t oam_page_offset;
+    int16_t oam_cycle_count;
 };
 
 // Set the cartridge of the NES.
@@ -36,6 +43,9 @@ uint8_t nes_read(struct nes* computer, uint16_t address);
 
 // Write a byte to a given address.
 void nes_write(struct nes* computer, uint16_t address, uint8_t byte);
+
+// Clock the NES.
+void nes_clock(struct nes* computer);
 
 // Create a new NES computer instance.
 struct nes* nes_alloc();

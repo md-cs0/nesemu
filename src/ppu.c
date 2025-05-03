@@ -9,6 +9,17 @@
 #include "util.h"
 #include "ppu.h"
 
+// Internal enum for deciding the current timing stage.
+enum timing
+{
+    TIMING_UNKNOWN = -1,
+
+    TIMING_PRE_RENDER = 0,
+    TIMING_VISIBLE,
+    TIMING_POST_RENDER,
+    TIMING_VBLANK
+};
+
 // Ricoh 2C02 palette table (ABGR8888).
 static struct agbr8888 palette_lookup[] =
 {    // 0x00 - 0x0F
@@ -85,9 +96,32 @@ static struct agbr8888 palette_lookup[] =
 };
 
 // Is rendering enabled?
+// If both bits 3 and 4 are forced to be zero, this is known to be forced blanking.
 static inline bool ppu_isrendering(struct ppu* ppu)
 {
     return ppu->ppumask.vars.background_rendering || ppu->ppumask.vars.sprite_rendering;
+}
+
+// See above function.
+static inline bool ppu_forcedblanking(struct ppu* ppu)
+{
+    return !ppu_isrendering(ppu);
+}
+
+// What stage of rendering is the PPU currently in?
+static inline enum timing ppu_timing(struct ppu* ppu)
+{
+    if (ppu->scanline == -1)
+        return TIMING_PRE_RENDER;
+    else if (0 <= ppu->scanline && ppu->scanline <= 239)
+        return TIMING_VISIBLE;
+    else if (ppu->scanline == 240)
+        return TIMING_POST_RENDER;
+    else if (241 <= ppu->scanline && ppu->scanline <= 260)
+        return TIMING_VBLANK;
+
+    assert(false);
+    return TIMING_UNKNOWN;
 }
 
 // Increment the coarse X scroll component of v. If coarse X == 31,
@@ -146,6 +180,7 @@ void ppu_reset(struct ppu* ppu)
     ppu->enumerated_cycles = 0;
     ppu->cycle = 0;
     ppu->scanline = -1;
+    ppu->frame_complete = false;
 
     // Clear public registers.
     ppu->ppuctrl.reg = 0x00;
@@ -155,6 +190,9 @@ void ppu_reset(struct ppu* ppu)
 
     // Clear internal registers.
     ppu->w = false;
+
+    // Reset PPU status.
+    ppu->oam_executing_dma = false;
 }
 
 // Read a byte from a given address on the internal PPU bus.
@@ -232,13 +270,13 @@ uint8_t ppu_cpu_read(struct ppu* ppu, uint16_t address)
     case 0x0002:
     {
         ppu->w = false;
-        return 0;
+        return ppu->ppustatus.reg;
     }
     
     // OAMDATA
     case 0x0004:
     {
-        return 0;
+        return ppu->oam_byte_pointer[ppu->oamaddr];
     }
 
     // PPUDATA
@@ -275,12 +313,14 @@ void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte)
     // OAMADDR
     case 0x0003:
     {
+        ppu->oamaddr = byte;
         return;
     }
 
     // OAMDATA
     case 0x0004:
     {
+        ppu->oamaddr++;
         return;
     }
 
@@ -320,6 +360,14 @@ void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte)
     {
         return;
     }
+
+    // OAMDMA
+    case 0x4014:
+    {
+        ppu->oamdma = byte;
+        ppu->oam_executing_dma = true;
+        return;
+    }
     }
 
     // Open bus.
@@ -330,6 +378,43 @@ void ppu_clock(struct ppu* ppu)
 {
     // Increment the total number of cycles.
     ppu->enumerated_cycles++;
+
+    // Determine the current PPU timing phase.
+    switch ((int)ppu_timing(ppu))
+    {
+    // Pre-render scanline.
+    case TIMING_PRE_RENDER:
+    {
+        break;
+    }
+
+    // Visible scanlines.
+    case TIMING_VISIBLE:
+    {
+        break;
+    }
+
+    // Post-render scanline.
+    case TIMING_POST_RENDER:
+    {
+        break;
+    }
+
+    // Vertical-blanking scanlines.
+    case TIMING_VBLANK:
+    {
+        break;
+    }
+    }
+
+    // Increment the cycle and scanline count.
+    if (ppu->cycle == 340)
+    {
+        if (ppu->scanline == 261)
+            ppu->frame_complete = true;
+        ppu->scanline = (ppu->scanline + 2) % 262 - 1;
+    }
+    ppu->cycle = (ppu->cycle + 1) % 341;
 }
 
 // Create a new PPU instance. The PPU must be reset before used.
@@ -340,6 +425,10 @@ struct ppu* ppu_alloc()
 
     // As safe_malloc() uses calloc() internally, the registers should already
     // be set to zero.
+
+    // Set the OAM byte pointer to the address of the OAM buffer. This is necessary
+    // for OAMADDR/OAMDATA.
+    ppu->oam_byte_pointer = (uint8_t*)&ppu->oam;
     
     // Return the PPU.
     return ppu;

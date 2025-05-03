@@ -143,7 +143,6 @@ int main(int argc, char** argv)
     nes_reset(display.computer);
 
     // Start the main event loop.
-    uint64_t cycles = 0;
     SDL_AddEventWatch(watcher, NULL);
     atexit(process_exit);
     for (;;)
@@ -159,13 +158,9 @@ int main(int argc, char** argv)
             }
         }
 
-        // Clock the CPU and PPU per the master clock.
-        if (cycles % 12 == 0)
-            cpu_clock(display.computer->cpu);
-        if (cycles % 4 == 0)
-            ppu_clock(display.computer->ppu);
-        cycles++;
-
+        // Clock the NES.
+        nes_clock(display.computer);
+        
         // Update the buffer and re-render it.
         //SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(agbr8888));
         update_render();

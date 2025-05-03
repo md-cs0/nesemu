@@ -43,6 +43,46 @@ struct ppu
     uint8_t palette_ram[0x20];
     uint8_t vram[0x800];
 
+    // PPU OAM.
+    struct oamdata
+    {
+        // Y position of the sprite (top-left).
+        uint8_t y;
+
+        // Tile index number.
+        union
+        {   
+            // 8x16
+            struct 
+            {
+                uint8_t bank                : 1;    // 0: segment $0000; 1: segment $1000
+                uint8_t tile_of_top         : 7;    // tile number for top of sprite
+            } vars;
+
+            // 8x8
+            uint8_t value;
+        } tile_index;
+
+        // Sprite attributes.
+        union
+        {
+            struct
+            {
+                uint8_t palette             : 2;    // palette (4 to 7) of sprite
+                uint8_t unimplemented       : 3;    // unimplemented
+                uint8_t priority            : 1;    // 0: in front of background; 1: behind background
+                uint8_t flip_horizontally   : 1;    // if 1, flip horizontally
+                uint8_t flip_vertically     : 1;    // if 1, flip vertically
+            } vars;
+            uint8_t value;
+        } attributes;
+
+        // X position of the sprite (top-left).
+        uint8_t x;
+    } oam[0x40];
+    uint8_t* oam_byte_pointer;
+    bool oam_executing_dma;
+
     // Register - PPUCTRL ($2000 write)
     union
     {
@@ -107,6 +147,7 @@ struct ppu
     // Timing information.
     int16_t cycle;
     int16_t scanline;
+    bool frame_complete;
 
     // Debug information.
     uint64_t enumerated_cycles;
