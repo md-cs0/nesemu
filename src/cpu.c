@@ -1461,9 +1461,7 @@ void cpu_spew(struct cpu* cpu, uint16_t pc, FILE* stream)
     else
         bytes = 3;
     for (int i = 0; i < bytes; ++i)
-    {
         fprintf(stream, "%02X ", nes_read(cpu->computer, pc + i));
-    }
     fprintf(stream, "%*s", (3 - bytes) * 3 + 1, "");
     
     // Print the opcode itself.
@@ -1516,15 +1514,6 @@ void cpu_spew(struct cpu* cpu, uint16_t pc, FILE* stream)
     }
 
     // Print register information.
-    fprintf(stream, "A:%02X ", cpu->a);
-    fprintf(stream, "X:%02X ", cpu->x);
-    fprintf(stream, "Y:%02X ", cpu->y);
-    fprintf(stream, "P:%02X ", cpu->p);
-    fprintf(stream, "SP:%02X             ", cpu->s);
-
-    // Print the number of enumerated cycles.
-    fprintf(stream, "CYC:%llu", cpu->enumerated_cycles);
-
-    // Finish.
-    fprintf(stream, "\n");
+    fprintf(stream, "A:%02X X:%02X Y:%02X P:%02X SP:%02X             CYC:%llu\n", 
+        cpu->a, cpu->x, cpu->y, cpu->p, cpu->s, cpu->enumerated_cycles);
 }

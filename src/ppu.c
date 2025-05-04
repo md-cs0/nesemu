@@ -191,8 +191,9 @@ void ppu_reset(struct ppu* ppu)
     // Clear internal registers.
     ppu->w = false;
 
-    // Reset PPU status.
+    // Reset PPU flags.
     ppu->oam_executing_dma = false;
+    ppu->even_odd_frame = true; // Set to odd so that it is set to even next frame.
 }
 
 // Read a byte from a given address on the internal PPU bus.
@@ -378,6 +379,10 @@ void ppu_clock(struct ppu* ppu)
 {
     // Increment the total number of cycles.
     ppu->enumerated_cycles++;
+    ppu->frame_cycles_enumerated++;
+
+    // Toggle the even/odd frame flag.
+    ppu->even_odd_frame = !ppu->even_odd_frame;
 
     // Determine the current PPU timing phase.
     switch ((int)ppu_timing(ppu))
@@ -391,6 +396,9 @@ void ppu_clock(struct ppu* ppu)
     // Visible scanlines.
     case TIMING_VISIBLE:
     {
+        // Scanline 0, cycle 0: skip on even frames.
+        if (ppu->scanline == 0 && ppu->cycle == 0 && !ppu->even_odd_frame)
+            ppu->cycle = 1;
         break;
     }
 
@@ -410,7 +418,7 @@ void ppu_clock(struct ppu* ppu)
     // Increment the cycle and scanline count.
     if (ppu->cycle == 340)
     {
-        if (ppu->scanline == 261)
+        if (ppu->scanline == 260)
             ppu->frame_complete = true;
         ppu->scanline = (ppu->scanline + 2) % 262 - 1;
     }

@@ -145,8 +145,18 @@ int main(int argc, char** argv)
     // Start the main event loop.
     SDL_AddEventWatch(watcher, NULL);
     atexit(process_exit);
+    uint64_t timestamp = 0;
     for (;;)
     {
+        // Busywait until the time length of a PPU frame has been complete.
+        static float ns_per_ppu_cycle = (float)NANOSECOND / ((float)MASTER_CLOCK / 4);
+        uint64_t time_wait = display.computer->ppu->frame_cycles_enumerated * ns_per_ppu_cycle;
+        while (display.computer->ppu->frame_complete && get_ns_timestamp() - timestamp < time_wait)
+            continue;
+        timestamp = get_ns_timestamp();
+        display.computer->ppu->frame_complete = false;
+        display.computer->ppu->frame_cycles_enumerated = 0;
+
         // Poll each event and handle process exit.
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -158,11 +168,13 @@ int main(int argc, char** argv)
             }
         }
 
-        // Clock the NES.
-        nes_clock(display.computer);
+        // Clock the NES enough times to render a whole frame.
+        while (!display.computer->ppu->frame_complete)
+            nes_clock(display.computer);
         
         // Update the buffer and re-render it.
-        //SDL_UpdateTexture(display.buffer, NULL, grid, NES_W * sizeof(agbr8888));
+        SDL_UpdateTexture(display.buffer, NULL, &display.computer->ppu->screen, 
+            NES_W * sizeof(struct agbr8888));
         update_render();
     }
 

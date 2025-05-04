@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "constants.h"
 #include "nes.h"
 
 // ABGR8888 colour type, so that the NES code is independent of SDL.
@@ -42,6 +43,9 @@ struct ppu
     // PPU RAM.
     uint8_t palette_ram[0x20];
     uint8_t vram[0x800];
+
+    // PPU screen.
+    struct agbr8888 screen[NES_H][NES_W];
 
     // PPU OAM.
     struct oamdata
@@ -79,7 +83,7 @@ struct ppu
 
         // X position of the sprite (top-left).
         uint8_t x;
-    } oam[0x40];
+    } oam[0x40], oam_memory[0x8];
     uint8_t* oam_byte_pointer;
     bool oam_executing_dma;
 
@@ -144,9 +148,13 @@ struct ppu
     uint8_t x                               : 3;    // fine X scroll
     bool w                                  : 1;    // $2005/$2006 write latch.
 
+    // PPU flags.
+    bool even_odd_frame;                            // 0: even; 1: odd
+
     // Timing information.
     int16_t cycle;
     int16_t scanline;
+    uint32_t frame_cycles_enumerated;
     bool frame_complete;
 
     // Debug information.

@@ -10,6 +10,8 @@
 #include "cpu.h"
 #include "ppu.h"
 
+#define MASTER_CLOCK 21477272 // Hz
+
 // NES computer struct definition.
 struct nes
 {
