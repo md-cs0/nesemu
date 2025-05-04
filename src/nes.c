@@ -101,6 +101,10 @@ void nes_clock(struct nes* computer)
             cpu_clock(computer->cpu);
         }
     }
+    
+    // Change the CPU NMI status depending on the PPU's vblank flag status.
+    computer->cpu->nmi = !(computer->ppu->ppustatus.vars.vblank_flag && 
+        computer->ppu->ppuctrl.vars.vblank_nmi_enable);
 
     // Increment the total number of cycles.
     computer->cycles++; 

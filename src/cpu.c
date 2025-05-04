@@ -1341,6 +1341,9 @@ static void cpu_irq(struct cpu* cpu)
 // Trigger a non-maskable interrupt (falling edge-sensitive).
 static void cpu_nmi(struct cpu* cpu)
 {
+    // Set the NMI toggle flag to false.
+    cpu->nmi_toggle = false;
+
     // Push the PC and processor status.
     cpu_push(cpu, cpu->pc >> 8);
     cpu_push(cpu, cpu->pc);
@@ -1403,7 +1406,7 @@ void cpu_clock(struct cpu* cpu)
     cpu->irq_toggle = cpu_getflag(cpu, CPUFLAG_I);
 
     // If the NMI signal is held low and was previously high, trigger a NMI.
-    if (!cpu->nmi && cpu->nmi_toggle)
+    if (!cpu->nmi && cpu->nmi_toggle != cpu->nmi)
     {
         cpu_nmi(cpu);
         return;

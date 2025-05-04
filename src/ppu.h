@@ -146,10 +146,11 @@ struct ppu
     union internal_vram_register v;                 // current VRAM address
     union internal_vram_register t;                 // temporary VRAM address or of top-left onscreen tile
     uint8_t x                               : 3;    // fine X scroll
-    bool w                                  : 1;    // $2005/$2006 write latch.
+    bool w                                  : 1;    // $2005/$2006 write latch
 
     // PPU flags.
     bool even_odd_frame;                            // 0: even; 1: odd
+    bool vbl;                                       // if set, hold CPU NMI pin low
 
     // Timing information.
     int16_t cycle;

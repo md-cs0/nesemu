@@ -390,6 +390,13 @@ void ppu_clock(struct ppu* ppu)
     // Pre-render scanline.
     case TIMING_PRE_RENDER:
     {
+        // Scanline -1/261, cycle 1: clear vblank; reset sprite 0
+        if (ppu->cycle == 1 && ppu->scanline == -1)
+        {
+            ppu->ppustatus.vars.vblank_flag = 0;
+            ppu->ppustatus.vars.sprite_0_hit_flag = 0;
+            ppu->ppustatus.vars.sprite_overflow_flag = 0;
+        }
         break;
     }
 
@@ -397,7 +404,7 @@ void ppu_clock(struct ppu* ppu)
     case TIMING_VISIBLE:
     {
         // Scanline 0, cycle 0: skip on even frames.
-        if (ppu->scanline == 0 && ppu->cycle == 0 && !ppu->even_odd_frame)
+        if (ppu->cycle == 0 && ppu->scanline == 0 && !ppu->even_odd_frame && ppu_isrendering(ppu))
             ppu->cycle = 1;
         break;
     }
@@ -411,6 +418,9 @@ void ppu_clock(struct ppu* ppu)
     // Vertical-blanking scanlines.
     case TIMING_VBLANK:
     {
+        // Scanline 241, cycle 1: set vblank flag
+        if (ppu->cycle == 1 && ppu->scanline == 241)
+            ppu->ppustatus.vars.vblank_flag = 1;
         break;
     }
     }
