@@ -136,11 +136,8 @@ struct ppu
 
     // Other registers.
     uint8_t oamaddr;                                // OAMADDR - sprite RAM address ($2003 write)
-    uint8_t oamdata;                                // OAMDATA - sprite RAM data ($2004 read/write)
-    uint8_t ppuscroll;                              // PPUSCROLL - X and Y scroll ($2005 write)
-    uint8_t ppuaddr;                                // PPUADDR - VRAM address ($2006 write)
-    uint8_t ppudata;                                // PPUDATA - VRAM data ($2007 read/write)
     uint8_t oamdma;                                 // OAMDMA - sprite direct memory access ($4014 write)
+    uint8_t ppudata_read_buffer;                    // PPUDATA internal read buffer.
 
     // Internal registers (used for scrolling)
     union internal_vram_register v;                 // current VRAM address
@@ -150,8 +147,17 @@ struct ppu
 
     // PPU flags.
     bool even_odd_frame;                            // 0: even; 1: odd
-    bool vbl;                                       // if set, hold CPU NMI pin low
 
+    // Background rendering.
+    uint8_t bg_next_tile_data;
+    uint8_t bg_next_attribute_data;
+    uint8_t bg_next_pt_tile_lsb;
+    uint8_t bg_next_pt_tile_msb;
+    uint16_t bg_pattern_lsb_shifter;
+    uint16_t bg_pattern_msb_shifter;
+    uint16_t bg_attribute_x_shifter;
+    uint16_t bg_attribute_y_shifter;
+    
     // Timing information.
     int16_t cycle;
     int16_t scanline;

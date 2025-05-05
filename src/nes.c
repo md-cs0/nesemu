@@ -13,7 +13,8 @@ void nes_reset(struct nes* computer)
 {
     computer->cycles = 0;
     computer->oam_cycle_count = 0;
-    computer->oam_page_offset = 0;
+    computer->oam_address = 0;
+    computer->oam_executing_dma = false;
     cpu_reset(computer->cpu);
     ppu_reset(computer->ppu);
 }
@@ -55,7 +56,10 @@ void nes_write(struct nes* computer, uint16_t address, uint8_t byte)
 
     // $4014: NES OAM direct memory access.
     else if (address == 0x4014)
-        return;
+    {
+        computer->oam_address = byte << 8;
+        computer->oam_executing_dma = true;
+    }
 
     // Open bus.
 }
@@ -71,14 +75,14 @@ void nes_clock(struct nes* computer)
     if (computer->cycles % 12 == 0)
     {
         // Override CPU clocking with OAM DMA if it is currently taking place.
-        if (computer->ppu->oam_executing_dma)
+        if (computer->oam_executing_dma)
         {
-            // For each even non-idle cycle (read/write cycles are combined for ease
+            // For each odd non-idle cycle (read/write cycles are combined for ease
             // of emulation), copy from the given CPU page:offset to OAM.
-            if (computer->oam_cycle_count > 0 && !(computer->oam_cycle_count & 1))
+            if (computer->oam_cycle_count <= 512 && computer->oam_cycle_count & 1)
             {
-                uint8_t byte = nes_read(computer, (computer->ppu->oamdma << 8) | computer->oam_page_offset);
-                computer->ppu->oam_byte_pointer[computer->oam_page_offset++] = byte;
+                uint8_t byte = nes_read(computer, (computer->ppu->oamdma << 8) | computer->oam_address);
+                computer->ppu->oam_byte_pointer[computer->oam_address++] = byte;
             }
 
             // Handle the number of executed CPU cycles. This procedure takes 513 cycles,
@@ -88,7 +92,7 @@ void nes_clock(struct nes* computer)
             if (computer->oam_cycle_count > 512)
             {
                 computer->oam_cycle_count = 0;
-                computer->ppu->oam_executing_dma = false;
+                computer->oam_executing_dma = false;
             }
 
             // Increment the CPU enumerated cycles count.

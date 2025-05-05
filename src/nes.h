@@ -27,7 +27,8 @@ struct nes
     uint64_t cycles;
 
     // OAM.
-    uint8_t oam_page_offset;
+    bool oam_executing_dma;
+    uint16_t oam_address;
     int16_t oam_cycle_count;
 };
 
