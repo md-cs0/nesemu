@@ -13,7 +13,8 @@ void nes_reset(struct nes* computer)
 {
     computer->cycles = 0;
     computer->oam_cycle_count = 0;
-    computer->oam_address = 0;
+    computer->oam_page = 0;
+    computer->oam_offset = 0;
     computer->oam_executing_dma = false;
     cpu_reset(computer->cpu);
     ppu_reset(computer->ppu);
@@ -57,7 +58,7 @@ void nes_write(struct nes* computer, uint16_t address, uint8_t byte)
     // $4014: NES OAM direct memory access.
     else if (address == 0x4014)
     {
-        computer->oam_address = byte << 8;
+        computer->oam_page = byte;
         computer->oam_executing_dma = true;
     }
 
@@ -70,7 +71,7 @@ void nes_clock(struct nes* computer)
     // For every 4th cycle, clock the PPU.
     if (computer->cycles % 4 == 0)
         ppu_clock(computer->ppu);
-    
+
     // For every 12th cycle, clock the CPU.
     if (computer->cycles % 12 == 0)
     {
@@ -81,8 +82,8 @@ void nes_clock(struct nes* computer)
             // of emulation), copy from the given CPU page:offset to OAM.
             if (computer->oam_cycle_count <= 512 && computer->oam_cycle_count & 1)
             {
-                uint8_t byte = nes_read(computer, (computer->ppu->oamdma << 8) | computer->oam_address);
-                computer->ppu->oam_byte_pointer[computer->oam_address++] = byte;
+                uint8_t byte = nes_read(computer, (computer->oam_page << 8) | computer->oam_offset);
+                computer->ppu->oam_byte_pointer[computer->oam_offset++] = byte;
             }
 
             // Handle the number of executed CPU cycles. This procedure takes 513 cycles,
@@ -100,8 +101,8 @@ void nes_clock(struct nes* computer)
         }
         else
         {
-            if (computer->cpu->cycles == 0)
-                cpu_spew(computer->cpu, computer->cpu->pc, stdout);
+            //if (computer->cpu->cycles == 0)
+            //    cpu_spew(computer->cpu, computer->cpu->pc, stdout);
             cpu_clock(computer->cpu);
         }
     }

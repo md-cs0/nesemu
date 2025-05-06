@@ -146,8 +146,8 @@ static uint16_t vram_mirror(struct ppu* ppu, uint16_t address)
     }
 }
 
-// Update the background shifters.
-static void ppu_update_background_shifters(struct ppu* ppu)
+// Reload the shifters.
+static void ppu_reload_shifters(struct ppu* ppu)
 {
     // Update the pattern data shifters.
     ppu->bg_pattern_lsb_shifter = (ppu->bg_pattern_lsb_shifter & 0xFF00) | ppu->bg_next_pt_tile_lsb;
@@ -177,9 +177,10 @@ void ppu_reset(struct ppu* ppu)
 
     // Clear internal registers.
     ppu->w = false;
+    ppu->ppudata_read_buffer = 0x00;
 
     // Reset PPU flags.
-    ppu->even_odd_frame = true; // Set to odd so that it is set to even next frame.
+    ppu->even_odd_frame = false; // Starts off even.
 }
 
 // Read a byte from a given address on the internal PPU bus.
@@ -190,7 +191,7 @@ uint8_t ppu_bus_read(struct ppu* ppu, uint16_t address)
 
     // Attempt to read from the cartridge.
     uint8_t byte;
-    if (cartridge_cpu_read(ppu->computer->cartridge, address, &byte))
+    if (cartridge_ppu_read(ppu->computer->cartridge, address, &byte))
         return byte;
 
     // $2000-$2FFF: nametables 0-3.
@@ -205,11 +206,11 @@ uint8_t ppu_bus_read(struct ppu* ppu, uint16_t address)
         // the background and sprite palettes. Entry 0 of palette 0 is
         // exclusively used as the backdrop colour.
         address &= 0x001F;
-        if (address & 0x0010 && !(address & 0x0003))
-            address &= ~0x0010;
+        if ((address & 0x0013) == 0x0010)
+            address &= 0x000F;
 
         // Return the palette RAM index.
-        return ppu->palette_ram[address];
+        return ppu->palette_ram[address] & (ppu->ppumask.vars.greyscale ? 0x30 : 0x3F);
     }
 
     // Open bus.
@@ -237,8 +238,8 @@ void ppu_bus_write(struct ppu* ppu, uint16_t address, uint8_t byte)
         // Map the address first. Entry 0 of each palette is shared between
         // the background and sprite palettes.
         address &= 0x001F;
-        if (address & 0x0010 && !(address & 0x0003))
-            address &= ~0x0010;
+        if ((address & 0x0013) == 0x0010)
+            address &= 0x000F;
 
         // Set the palette RAM index.
         ppu->palette_ram[address] = byte;
@@ -355,7 +356,7 @@ void ppu_cpu_write(struct ppu* ppu, uint16_t address, uint8_t byte)
             ppu->v.reg = ppu->t.reg;
         }
         else
-            ppu->t.reg = (ppu->t.reg & 0xFF) | (((byte >> 2) & 0b111111) << 8); // bit 14 is cleared
+            ppu->t.reg = (ppu->t.reg & 0xFF) | ((byte & 0b111111) << 8); // bit 14 is cleared
         ppu->w = !ppu->w;
         return;
     }
@@ -378,9 +379,6 @@ void ppu_clock(struct ppu* ppu)
     // Increment the total number of cycles.
     ppu->enumerated_cycles++;
     ppu->frame_cycles_enumerated++;
-
-    // Toggle the even/odd frame flag.
-    ppu->even_odd_frame = !ppu->even_odd_frame;
 
     // Determine the current PPU timing phase.
     switch ((int)ppu_timing(ppu))
@@ -434,129 +432,138 @@ void ppu_clock(struct ppu* ppu)
             // tiles are 8x8. However, because the same attribute byte is used for each
             // 8-bit string, they er all forced to use the same palette attribute.
 
-            // Begin by shifting the background shifters.
+            // Begin by shifting the shift registers.
             ppu->bg_pattern_lsb_shifter <<= 1;
             ppu->bg_pattern_msb_shifter <<= 1;
             ppu->bg_attribute_x_shifter <<= 1;
             ppu->bg_attribute_y_shifter <<= 1;
-            
+
             // Then, process the 8-cycle window.
             switch ((ppu->cycle - 1) & 0b111)
             {
-                // Cycles 0-1 (the latch isn't emulated): nametable byte
-                case 0:
-                    // For cycles 9, 17, 25... 257 (see cycle == 257 code below as well), 
-                    // the background shifters must be reloaded.
-                    if (9 <= ppu->cycle && 257 <= ppu->cycle)
-                        ppu_update_background_shifters(ppu);
+            // Cycles 0-1 (the latch isn't emulated): nametable byte
+            case 0:
+                // For cycles 9, 17, 25... 257 (see cycle == 257 code below as well), 
+                // the shift registers must be reloaded.
+                if (9 <= ppu->cycle && ppu->cycle <= 256)
+                    ppu_reload_shifters(ppu);
 
-                    // For these two cycles, the background byte from a given nametable
-                    // must also be read. The value of this byte is used for reading into
-                    // the appropriate pattern table.
-                    //
-                    // This is just done by using the base nametables address 0x2000, OR'd
-                    // with the coarse x/coarse y and nametable select components of the
-                    // current VRAM register, i.e. v & 0xFFF.
-                    ppu->bg_next_tile_data = ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
-                    break;
+                // For these two cycles, the background byte from a given nametable
+                // must also be read. The value of this byte is used for reading into
+                // the appropriate pattern table.
+                //
+                // This is just done by using the base nametables address 0x2000, OR'd
+                // with the coarse x/coarse y and nametable select components of the
+                // current VRAM register, i.e. v & 0xFFF.
+                ppu->bg_next_tile_data = ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
+                break;
 
-                // Cycle 2-3 (the latch isn't emulated): attribute table byte
-                case 2:
-                    // First, the attribute data byte must be read.
-                    ppu->bg_next_attribute_data = ppu_bus_read(ppu, 0x23C0 
-                        | (ppu->v.vars.nametable_select << 10)
-                        | ((ppu->v.vars.coarse_y_scroll >> 2) << 3) // "((v >> 4) & 0x38)"
-                        | (ppu->v.vars.coarse_x_scroll >> 2));
+            // Cycles 2-3 (the latch isn't emulated): attribute table byte
+            case 2:
+                // First, the attribute data byte must be read.
+                ppu->bg_next_attribute_data = ppu_bus_read(ppu, 0x23C0 
+                    | (ppu->v.vars.nametable_select << 10)
+                    | ((ppu->v.vars.coarse_y_scroll >> 2) << 3) // "((v >> 4) & 0x38)"
+                    | (ppu->v.vars.coarse_x_scroll >> 2));
 
-                    // The attribute byte is then multiplexed into two bits.
-                    // It's important to understand how this works.
-                    //
-                    // Each attribute byte controls the palette of a 32x32 pixel, or 4x4
-                    // part, of the nametable, which can be divided into four 2-bit areas,
-                    // where each area covers 16x16 pixels or 2x2 tiles.
-                    //
-                    // The value of an attribute byte can therefore be demonstrated as:
-                    // (bottomright << 6) | (bottomleft << 4) | (topright << 2) || topleft
-                    // given topleft, topright, bottomleft and bottomright, left to right,
-                    // top to bottom.
-                    // 
-                    // As bit 1 of both the coarse x and coarse y components are used to
-                    // select which 2x2 tile section is used, it can be said that if bit 1
-                    // of coarse x is 1, then shift the attribute byte to the right by 2 bits, 
-                    // as this will select the right-hand side of the 4x4 tile section. 
-                    // Furthermore, to select the bottom, it can be said that if bit 1 of 
-                    // coarse y is 1, because the bottom sections are bits 4-7 of the
-                    // attribute byte, the attribute byte must be shifted to the right by 4 bits.
-                    ppu->bg_next_attribute_data >>= (ppu->v.vars.coarse_x_scroll & 0b10)
-                        | ((ppu->v.vars.coarse_y_scroll & 0b10) << 1);
-                    ppu->bg_next_attribute_data &= 0b11;
-                    break;
-                
-                // Cycles 4-5: pattern table tile (less significant bit plane)
-                // This works by reading from the pattern table, located at $0000-$1FFF.
-                // Each tile in a pattern table is 16 bytes, composed of two planes, where
-                // each bit in the first plane controls bit 0 of a pixel's colour index,
-                // whereas the corresponding bit in the second plane controls bit 1:
-                // - Whether the first or pattern table is used depends on bit 4 of PPUCTRL,
-                //   which will be used as bit 12 in tis context. 
-                // - The tile number from the nametable is incorporated as bits 4-11.
-                // - In this context, the bit plane (bit 3) is 0, i.e. less significant 
-                //   bit, whereas for cycles 6-7, this is toggled.
-                // - Bits 0-3 are the fine y offset, i.e. the row number within a tile.
-                case 4:
-                    ppu->bg_next_pt_tile_lsb = ppu_bus_read(ppu, 
-                        (ppu->ppuctrl.vars.bg_pt_address << 12)
-                        + (ppu->bg_next_tile_data << 4)
-                        + ppu->v.vars.fine_y_scroll
-                        + (0 << 3));
-                    break;
-                
-                // Cycles 6-7 (excluding coarse X scroll): pattern table tile.
-                // Same as above, except the more significant bit plane is toggled.
-                case 6:
-                    ppu->bg_next_pt_tile_msb = ppu_bus_read(ppu, 
-                        (ppu->ppuctrl.vars.bg_pt_address << 12)
-                        + (ppu->bg_next_tile_data << 4)
-                        + ppu->v.vars.fine_y_scroll
-                        + (1 << 3));
-                    break;
+                // The attribute byte is then multiplexed into two bits.
+                // It's important to understand how this works.
+                //
+                // Each attribute byte controls the palette of a 32x32 pixel, or 4x4
+                // part, of the nametable, which can be divided into four 2-bit areas,
+                // where each area covers 16x16 pixels or 2x2 tiles.
+                //
+                // The value of an attribute byte can therefore be demonstrated as:
+                // (bottomright << 6) | (bottomleft << 4) | (topright << 2) || topleft
+                // given topleft, topright, bottomleft and bottomright, left to right,
+                // top to bottom.
+                // 
+                // As bit 1 of both the coarse x and coarse y components are used to
+                // select which 2x2 tile section is used, it can be said that if bit 1
+                // of coarse x is 1, then shift the attribute byte to the right by 2 bits, 
+                // as this will select the right-hand side of the 4x4 tile section. 
+                // Furthermore, to select the bottom, it can be said that if bit 1 of 
+                // coarse y is 1, because the bottom sections are bits 4-7 of the
+                // attribute byte, the attribute byte must be shifted to the right by 4 bits.
+                ppu->bg_next_attribute_data >>= (ppu->v.vars.coarse_x_scroll & 0b10)
+                    | ((ppu->v.vars.coarse_y_scroll & 0b10) << 1);
+                ppu->bg_next_attribute_data &= 0b11;
+                break;
 
-                // Cycle 7: coarse X scroll.
-                case 7:
+            // Cycles 4-5: pattern table tile (less significant bit plane)
+            // This works by reading from the pattern table, located at $0000-$1FFF.
+            // Each tile in a pattern table is 16 bytes, composed of two planes, where
+            // each bit in the first plane controls bit 0 of a pixel's colour index,
+            // whereas the corresponding bit in the second plane controls bit 1:
+            // - Whether the first or pattern table is used depends on bit 4 of PPUCTRL,
+            //   which will be used as bit 12 in tis context. 
+            // - The tile number from the nametable is incorporated as bits 4-11.
+            // - In this context, the bit plane (bit 3) is 0, i.e. less significant 
+            //   bit, whereas for cycles 6-7, this is toggled.
+            // - Bits 0-3 are the fine y offset, i.e. the row number within a tile.
+            case 4:
+                ppu->bg_next_pt_tile_lsb = ppu_bus_read(ppu, 
+                    (ppu->ppuctrl.vars.bg_pt_address << 12)
+                    + (ppu->bg_next_tile_data << 4)
+                    + (0 << 3)
+                    + ppu->v.vars.fine_y_scroll);
+                break;
+            
+            // Cycles 6-7 (excluding coarse X scroll): pattern table tile.
+            // Same as above, except the more significant bit plane is toggled.
+            case 6:
+                ppu->bg_next_pt_tile_msb = ppu_bus_read(ppu, 
+                    (ppu->ppuctrl.vars.bg_pt_address << 12)
+                    + (ppu->bg_next_tile_data << 4)
+                    + (1 << 3)
+                    + ppu->v.vars.fine_y_scroll);
+                break;
+
+            // Cycle 7: coarse X scroll.
+            case 7:
+                if (ppu_isrendering(ppu))
+                {
                     if (ppu->v.vars.coarse_x_scroll == 0b11111)
-                        ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b01;
-                        ppu->v.vars.coarse_x_scroll++;
-                    break;
+                        ppu->v.vars.nametable_select ^= 0b01;
+                    ppu->v.vars.coarse_x_scroll++;  
+                }
+                break;
             }
         }
 
         // Cycle 256: fine Y scroll.
         if (ppu->cycle == 256)
         {
-            if (ppu->v.vars.fine_y_scroll == 0b111)
+            if (ppu_isrendering(ppu))
             {
-                if (ppu->v.vars.coarse_y_scroll == 29)
+                if (ppu->v.vars.fine_y_scroll == 0b111)
                 {
-                    ppu->v.vars.coarse_y_scroll = 0;
-                    ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
+                    if (ppu->v.vars.coarse_y_scroll == 29)
+                    {
+                        ppu->v.vars.coarse_y_scroll = 0;
+                        ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
+                    }
+                    else
+                        ppu->v.vars.coarse_y_scroll++;
                 }
-                else
-                    ppu->v.vars.coarse_y_scroll++;
+                ppu->v.vars.fine_y_scroll++;
             }
-            ppu->v.vars.fine_y_scroll++;
         }
 
         // Cycle 257: copy coarse X scroll and horizontal nametable select from t to v.
-        // The background shifters should also be reloaded.
+        // The shift registers should also be reloaded.
         if (ppu->cycle == 257)
         {
             // Copy coarse X scroll/horizontal nametable select.
-            ppu->v.vars.coarse_x_scroll = ppu->t.vars.coarse_x_scroll;
-            ppu->v.vars.nametable_select = (ppu->v.vars.nametable_select & 0b10) 
-                | ppu->t.vars.nametable_select & 0b01;        
+            if (ppu_isrendering(ppu))
+            {
+                ppu->v.vars.coarse_x_scroll = ppu->t.vars.coarse_x_scroll;
+                ppu->v.vars.nametable_select = (ppu->v.vars.nametable_select & 0b10) 
+                    | (ppu->t.vars.nametable_select & 0b01);      
+            }  
 
-            // Reload the background shifters.
-            ppu_update_background_shifters(ppu);
+            // Reload the shift registers.
+            ppu_reload_shifters(ppu);
         }
 
         // Cycles 337-340: for some reason, the NES PPU fetches nametable bytes twice,
@@ -585,14 +592,45 @@ void ppu_clock(struct ppu* ppu)
     }
     }
 
-    // Draw the given dot for this cycle.
-    // TODO
+    // If within the NES resolution, render this pixel.
+    int x = ppu->cycle - 1, y = ppu->scanline;
+    if (0 <= y && y < NES_H && 0 <= x && x < NES_W)
+    {
+        // Generate the 4-bit background pixel to be drawn.
+        // The default values are 0, assuming that EXT is grounded, since EXT 
+        // will not be emulated here.
+        // TODO: show background in left 8px
+        uint8_t background_pixel = 0;
+        if (ppu->ppumask.vars.background_rendering)
+        {
+            // Fine X is used to select a bit from bits 8-15 of the shift registers.
+            uint16_t mux = 15 - ppu->x;
+
+            // Read the pattern table plane pixels from the given pattern shifters.
+            background_pixel |= (((ppu->bg_pattern_msb_shifter >> mux) & 0b1) << 1)
+                | ((ppu->bg_pattern_lsb_shifter >> mux) & 0b1);
+
+            // Read the palette data from the given attribute shifters.
+            background_pixel |= (((ppu->bg_attribute_y_shifter >> mux) & 0b1) << 3)
+                | (((ppu->bg_attribute_x_shifter >> mux) & 0b1) << 2);
+        }
+
+        // For now, because there is no sprite evaluation yet, priority multiplexing
+        // does not need to occur.
+
+        // Finally, read into palette RAM and blit the pixel.
+        ppu->screen[ppu->scanline][ppu->cycle - 1] = palette_lookup[ppu_bus_read(
+            ppu, 0x3F00 | background_pixel) & 0x3F];
+    }
 
     // Increment the cycle and scanline count.
     if (ppu->cycle == 340)
     {
         if (ppu->scanline == 260)
+        {
             ppu->frame_complete = true;
+            ppu->even_odd_frame = !ppu->even_odd_frame;
+        }
         ppu->scanline = (ppu->scanline + 2) % 262 - 1;
     }
     ppu->cycle = (ppu->cycle + 1) % 341;

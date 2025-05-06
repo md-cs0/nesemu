@@ -25,11 +25,12 @@ union internal_vram_register
 {
     struct
     {
-        uint8_t coarse_x_scroll         : 5;    // coarse X scroll
-        uint8_t coarse_y_scroll         : 5;    // coarse Y scroll
-        uint8_t nametable_select        : 2;    // nametable select
-        uint8_t fine_y_scroll           : 3;    // fine Y scroll
-        uint8_t padding                 : 1;    // unused bit 15
+        uint16_t coarse_x_scroll        : 5;    // coarse X scroll
+        uint16_t coarse_y_scroll        : 5;    // coarse Y scroll
+        uint16_t nametable_select       : 2;    // nametable select
+        uint16_t fine_y_scroll          : 3;    // fine Y scroll
+        uint16_t padding                : 1;    // unused bit 15
+        uint16_t unused                 : 1;
     } vars;
     uint16_t reg;
 };
@@ -136,7 +137,6 @@ struct ppu
 
     // Other registers.
     uint8_t oamaddr;                                // OAMADDR - sprite RAM address ($2003 write)
-    uint8_t oamdma;                                 // OAMDMA - sprite direct memory access ($4014 write)
     uint8_t ppudata_read_buffer;                    // PPUDATA internal read buffer.
 
     // Internal registers (used for scrolling)
