@@ -146,6 +146,7 @@ int main(int argc, char** argv)
     SDL_AddEventWatch(watcher, NULL);
     atexit(process_exit);
     uint64_t timestamp = 0;
+    float cached_framerate;
     for (;;)
     {
         // Busywait until the time length of a PPU frame has been complete.
@@ -153,7 +154,18 @@ int main(int argc, char** argv)
         uint64_t time_wait = display.computer->ppu->frame_cycles_enumerated * ns_per_ppu_cycle;
         while (display.computer->ppu->frame_complete && get_ns_timestamp() - timestamp < time_wait)
             continue;
-        timestamp = get_ns_timestamp();
+
+        // Calculate the framerate and change the window title.
+        uint64_t new_timestamp = get_ns_timestamp();
+        cached_framerate = lerp(cached_framerate, 
+            1 / ((float)(new_timestamp - timestamp) / NANOSECOND), 
+            min(max(1 / cached_framerate * 2, 0), 1));
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "nesemu: %dfps", (int)cached_framerate);
+        SDL_SetWindowTitle(display.window, buffer);
+
+        // Reset the PPU.
+        timestamp = new_timestamp;
         display.computer->ppu->frame_complete = false;
         display.computer->ppu->frame_cycles_enumerated = 0;
 

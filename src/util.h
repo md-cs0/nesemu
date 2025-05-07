@@ -23,3 +23,8 @@ inline void* safe_malloc(size_t size)
 }
 
 uint64_t get_ns_timestamp();
+
+inline float lerp(float a, float b, float t)
+{
+    return a * (1.f - t) + (b * t);
+}
