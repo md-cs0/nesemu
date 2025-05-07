@@ -5,12 +5,30 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "cartridge.h"
 #include "cpu.h"
 #include "ppu.h"
 
 #define MASTER_CLOCK 21477272 // Hz
+
+// Controller struct definition.
+union controller
+{ 
+    struct 
+    {
+        uint8_t a       : 1;
+        uint8_t b       : 1;
+        uint8_t select  : 1;
+        uint8_t start   : 1;
+        uint8_t up      : 1;
+        uint8_t down    : 1;
+        uint8_t left    : 1;
+        uint8_t right   : 1;
+    } vars;
+    uint8_t value;
+};
 
 // NES computer struct definition.
 struct nes
@@ -19,6 +37,11 @@ struct nes
     struct cpu* cpu;
     struct ppu* ppu;
     struct cartridge* cartridge;
+    union controller controllers[2];    // Only standard NES controllers are currently emulated.
+
+    // Standard controller cache.
+    bool controller_port_latch;         // This is technically its own register, but I am not emulating
+    uint8_t controller_cache[2];        // the expansion ports.
 
     // Internal RAM.
     uint8_t ram[0x0800];

@@ -36,6 +36,18 @@ uint8_t nes_read(struct nes* computer, uint16_t address)
     else if (0x2000 <= address && address <= 0x3FFF)
         return ppu_cpu_read(computer->ppu, address & 0x0007);
 
+    // $4016-$4017: controller input.
+    // The returned byte is supposed to have input data lines D0-D4, however
+    // only D0 is emulated, so the rest is open bus for now (bits 5-7 are also
+    // open bus in the actual hardware).
+    else if (0x4016 <= address && address <= 0x4017)
+    {
+        uint8_t index = address - 0x4016;
+        uint8_t byte = computer->controller_cache[index];
+        computer->controller_cache[index] >>= 1;
+        return byte;
+    }
+
     // Open bus: while not accurate, just return zero.
     return 0;
 }
@@ -60,6 +72,17 @@ void nes_write(struct nes* computer, uint16_t address, uint8_t byte)
     {
         computer->oam_page = byte;
         computer->oam_executing_dma = true;
+    }
+
+    // $4016: set the controller port latch bit (the expansion port is not emulated).
+    else if (address == 0x4016)
+    {
+        computer->controller_port_latch = byte & 0b1;
+        if (computer->controller_port_latch)
+        {
+            computer->controller_cache[0] = computer->controllers[0].value;
+            computer->controller_cache[1] = computer->controllers[1].value;
+        }
     }
 
     // Open bus.

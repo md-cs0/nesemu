@@ -146,37 +146,134 @@ int main(int argc, char** argv)
     SDL_AddEventWatch(watcher, NULL);
     atexit(process_exit);
     uint64_t timestamp = 0;
-    float cached_framerate;
+    float cached_framerate = 0.f;
     for (;;)
     {
         // Busywait until the time length of a PPU frame has been complete.
         static float ns_per_ppu_cycle = (float)NANOSECOND / ((float)MASTER_CLOCK / 4);
         uint64_t time_wait = display.computer->ppu->frame_cycles_enumerated * ns_per_ppu_cycle;
-        while (display.computer->ppu->frame_complete && get_ns_timestamp() - timestamp < time_wait)
+        uint64_t new_timestamp;
+        while (display.computer->ppu->frame_complete 
+            && (new_timestamp = get_ns_timestamp()) - timestamp < time_wait)
             continue;
 
         // Calculate the framerate and change the window title.
-        uint64_t new_timestamp = get_ns_timestamp();
-        cached_framerate = lerp(cached_framerate, 
-            1 / ((float)(new_timestamp - timestamp) / NANOSECOND), 
-            min(max(1 / cached_framerate * 2, 0), 1));
-        char buffer[64];
-        snprintf(buffer, sizeof(buffer), "nesemu: %dfps", (int)cached_framerate);
-        SDL_SetWindowTitle(display.window, buffer);
+        if (new_timestamp > timestamp)
+        {
+            cached_framerate = lerp(cached_framerate, 
+                1 / ((float)(new_timestamp - timestamp) / NANOSECOND), 
+                min(max(1 / cached_framerate * 2, 0), 1));
+            char buffer[64];
+            snprintf(buffer, sizeof(buffer), "nesemu: %dfps", (int)cached_framerate);
+            SDL_SetWindowTitle(display.window, buffer);
+        }
 
         // Reset the PPU.
         timestamp = new_timestamp;
         display.computer->ppu->frame_complete = false;
         display.computer->ppu->frame_cycles_enumerated = 0;
 
-        // Poll each event and handle process exit.
+        // Poll each event.
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
             switch (event.type)
             {
+            // Handle process exit.
             case SDL_QUIT:
                 goto quit;
+
+            // Set a controller input.
+            case SDL_KEYDOWN:
+                switch ((int)event.key.keysym.scancode)
+                {
+                // A key.
+                case SDL_SCANCODE_X:
+                    display.computer->controllers[0].vars.a = 1;
+                    break;
+
+                // B key.
+                case SDL_SCANCODE_Z:
+                    display.computer->controllers[0].vars.b = 1;
+                    break;
+
+                // Select key.
+                case SDL_SCANCODE_A:
+                    display.computer->controllers[0].vars.select = 1;
+                    break;
+
+                // Start key.
+                case SDL_SCANCODE_S:
+                    display.computer->controllers[0].vars.start = 1;
+                    break;
+                
+                // Up arrow key.
+                case SDL_SCANCODE_UP:
+                    display.computer->controllers[0].vars.up = 1;
+                    break;
+
+                // Down arrow key.
+                case SDL_SCANCODE_DOWN:
+                    display.computer->controllers[0].vars.down = 1;
+                    break;
+
+                // Left arrow key.
+                case SDL_SCANCODE_LEFT:
+                    display.computer->controllers[0].vars.left = 1;
+                    break;
+
+                // Right arrow key.
+                case SDL_SCANCODE_RIGHT:
+                    display.computer->controllers[0].vars.right = 1;
+                    break;
+                }
+                break;
+
+            // Release a controller input.
+            case SDL_KEYUP:
+                switch ((int)event.key.keysym.scancode)
+                {
+                // A key.
+                case SDL_SCANCODE_X:
+                    display.computer->controllers[0].vars.a = 0;
+                    break;
+
+                // B key.
+                case SDL_SCANCODE_Z:
+                    display.computer->controllers[0].vars.b = 0;
+                    break;
+
+                // Select key.
+                case SDL_SCANCODE_A:
+                    display.computer->controllers[0].vars.select = 0;
+                    break;
+
+                // Start key.
+                case SDL_SCANCODE_S:
+                    display.computer->controllers[0].vars.start = 0;
+                    break;
+                
+                // Up arrow key.
+                case SDL_SCANCODE_UP:
+                    display.computer->controllers[0].vars.up = 0;
+                    break;
+
+                // Down arrow key.
+                case SDL_SCANCODE_DOWN:
+                    display.computer->controllers[0].vars.down = 0;
+                    break;
+
+                // Left arrow key.
+                case SDL_SCANCODE_LEFT:
+                    display.computer->controllers[0].vars.left = 0;
+                    break;
+
+                // Right arrow key.
+                case SDL_SCANCODE_RIGHT:
+                    display.computer->controllers[0].vars.right = 0;
+                    break;
+                }
+                break;
             }
         }
 
