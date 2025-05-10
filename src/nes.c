@@ -43,8 +43,8 @@ uint8_t nes_read(struct nes* computer, uint16_t address)
     else if (0x4016 <= address && address <= 0x4017)
     {
         uint8_t index = address - 0x4016;
-        uint8_t byte = computer->controller_cache[index];
-        computer->controller_cache[index] >>= 1;
+        uint8_t byte = (computer->controller_cache[index] & 0x80) >> 7;
+        computer->controller_cache[index] <<= 1;
         return byte;
     }
 
