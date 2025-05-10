@@ -432,20 +432,15 @@ void ppu_clock(struct ppu* ppu)
             // tiles are 8x8. However, because the same attribute byte is used for each
             // 8-bit string, they er all forced to use the same palette attribute.
 
-            // Begin by shifting the shift registers.
-            ppu->bg_pattern_lsb_shifter <<= 1;
-            ppu->bg_pattern_msb_shifter <<= 1;
-            ppu->bg_attribute_x_shifter <<= 1;
-            ppu->bg_attribute_y_shifter <<= 1;
-
-            // Then, process the 8-cycle window.
+            // Process the 8-cycle window.
             switch ((ppu->cycle - 1) & 0b111)
             {
             // Cycles 0-1 (the latch isn't emulated): nametable byte
             case 0:
                 // For cycles 9, 17, 25... 257 (see cycle == 257 code below as well), 
-                // the shift registers must be reloaded.
-                if (9 <= ppu->cycle && ppu->cycle <= 256)
+                // and cycles 329 and 337, the shift registers must be reloaded, as this
+                // is when all the correct tile data has been fetched.
+                if (ppu->cycle != 1 && ppu->cycle != 321)
                     ppu_reload_shifters(ppu);
 
                 // For these two cycles, the background byte from a given nametable
@@ -519,35 +514,74 @@ void ppu_clock(struct ppu* ppu)
                     + ppu->v.vars.fine_y_scroll);
                 break;
 
-            // Cycle 7: coarse X scroll.
+            // Cycle 7: coarse X scroll (inc hori(v)) + fine Y scroll (inc vert(v)) on 
+            // cycle 256.
             case 7:
+                // Handle coarse X scroll. Technically this is from cycle 328 of this
+                // scanline to cycle 256 of the next scanline, but since this happens
+                // an even number of times and the number of times this happens is
+                // divisible through 32, this should be fine.
                 if (ppu_isrendering(ppu))
                 {
                     if (ppu->v.vars.coarse_x_scroll == 0b11111)
                         ppu->v.vars.nametable_select ^= 0b01;
                     ppu->v.vars.coarse_x_scroll++;  
                 }
+
+                // Cycle 256: fine Y scroll.
+                if (ppu->cycle == 256 && ppu_isrendering(ppu))
+                {
+                    if (ppu->v.vars.fine_y_scroll == 0b111)
+                    {
+                        if (ppu->v.vars.coarse_y_scroll == 29)
+                        {
+                            ppu->v.vars.coarse_y_scroll = 0;
+                            ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
+                        }
+                        else
+                            ppu->v.vars.coarse_y_scroll++;
+                    }
+                    ppu->v.vars.fine_y_scroll++;
+                }
                 break;
             }
-        }
 
-        // Cycle 256: fine Y scroll.
-        if (ppu->cycle == 256)
-        {
-            if (ppu_isrendering(ppu))
+            // If within the NES resolution, render this pixel.
+            int x = ppu->cycle - 1, y = ppu->scanline;
+            if (0 <= y && y < NES_H && 0 <= x && x < NES_W)
             {
-                if (ppu->v.vars.fine_y_scroll == 0b111)
+                // Generate the 4-bit background pixel to be drawn.
+                // The default values are 0, assuming that EXT is grounded, since EXT 
+                // will not be emulated here.
+                // TODO: show background in left 8px
+                uint8_t background_pixel = 0;
+                if (ppu->ppumask.vars.background_rendering)
                 {
-                    if (ppu->v.vars.coarse_y_scroll == 29)
-                    {
-                        ppu->v.vars.coarse_y_scroll = 0;
-                        ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
-                    }
-                    else
-                        ppu->v.vars.coarse_y_scroll++;
+                    // Fine X is used to select a bit from bits 8-15 of the shift registers.
+                    uint16_t mux = 15 - ppu->x;
+
+                    // Read the pattern table plane pixels from the given pattern shifters.
+                    background_pixel |= (((ppu->bg_pattern_msb_shifter >> mux) & 0b1) << 1)
+                        | ((ppu->bg_pattern_lsb_shifter >> mux) & 0b1);
+
+                    // Read the palette data from the given attribute shifters.
+                    background_pixel |= (((ppu->bg_attribute_y_shifter >> mux) & 0b1) << 3)
+                        | (((ppu->bg_attribute_x_shifter >> mux) & 0b1) << 2);
                 }
-                ppu->v.vars.fine_y_scroll++;
+
+                // For now, because there is no sprite evaluation yet, priority multiplexing
+                // does not need to occur.
+
+                // Finally, read into palette RAM and blit the pixel.
+                ppu->screen[ppu->scanline][ppu->cycle - 1] = palette_lookup[
+                    ppu_bus_read(ppu, 0x3F00 | background_pixel) & 0x3F];
             }
+
+            // Shift the shift registers.
+            ppu->bg_pattern_lsb_shifter <<= 1;
+            ppu->bg_pattern_msb_shifter <<= 1;
+            ppu->bg_attribute_x_shifter <<= 1;
+            ppu->bg_attribute_y_shifter <<= 1;
         }
 
         // Cycle 257: copy coarse X scroll and horizontal nametable select from t to v.
@@ -569,7 +603,10 @@ void ppu_clock(struct ppu* ppu)
         // Cycles 337-340: for some reason, the NES PPU fetches nametable bytes twice,
         // which is at least utilised by the MMC5 mapper for clocking a scanline counter.
         if (ppu->cycle == 337)
+        {
+            ppu_reload_shifters(ppu);
             ppu->bg_next_tile_data = ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
+        }
         if (ppu->cycle == 339)
             ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
 
@@ -590,37 +627,6 @@ void ppu_clock(struct ppu* ppu)
             ppu->ppustatus.vars.vblank_flag = 1;
         break;
     }
-    }
-
-    // If within the NES resolution, render this pixel.
-    int x = ppu->cycle - 1, y = ppu->scanline;
-    if (0 <= y && y < NES_H && 0 <= x && x < NES_W)
-    {
-        // Generate the 4-bit background pixel to be drawn.
-        // The default values are 0, assuming that EXT is grounded, since EXT 
-        // will not be emulated here.
-        // TODO: show background in left 8px
-        uint8_t background_pixel = 0;
-        if (ppu->ppumask.vars.background_rendering)
-        {
-            // Fine X is used to select a bit from bits 8-15 of the shift registers.
-            uint16_t mux = 15 - ppu->x;
-
-            // Read the pattern table plane pixels from the given pattern shifters.
-            background_pixel |= (((ppu->bg_pattern_msb_shifter >> mux) & 0b1) << 1)
-                | ((ppu->bg_pattern_lsb_shifter >> mux) & 0b1);
-
-            // Read the palette data from the given attribute shifters.
-            background_pixel |= (((ppu->bg_attribute_y_shifter >> mux) & 0b1) << 3)
-                | (((ppu->bg_attribute_x_shifter >> mux) & 0b1) << 2);
-        }
-
-        // For now, because there is no sprite evaluation yet, priority multiplexing
-        // does not need to occur.
-
-        // Finally, read into palette RAM and blit the pixel.
-        ppu->screen[ppu->scanline][ppu->cycle - 1] = palette_lookup[ppu_bus_read(
-            ppu, 0x3F00 | background_pixel) & 0x3F];
     }
 
     // Increment the cycle and scanline count.
@@ -653,7 +659,7 @@ struct ppu* ppu_alloc()
     return ppu;
 }
 
-// Free a CPU instance.
+// Free a PPU instance.
 void ppu_free(struct ppu* ppu)
 {
     free(ppu);
