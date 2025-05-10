@@ -556,7 +556,7 @@ void ppu_clock(struct ppu* ppu)
         {
             // Handle copying to secondary OAM first. Combine odd (reading) and even 
             // (writing) cycles together.
-            if (ppu->sp_count < 8 && ppu->sp_enumerated < 64)
+            if (ppu->sp_count < 8)
             {
                 // If sprite bytes must be copied from primary to secondary OAM, do so.
                 if (ppu->sp_byte_copy > 0)
@@ -590,7 +590,7 @@ void ppu_clock(struct ppu* ppu)
                         ppu->sp_enumerated++;
                 }
             }
-            else if (!ppu->ppustatus.vars.sprite_overflow_flag && ppu->sp_count >= 8 && ppu->sp_enumerated < 64)
+            else if (!ppu->ppustatus.vars.sprite_overflow_flag)
             {
                 // If 8 visible sprites were found, search for a 9th sprite. Unfortunately,
                 // due to a hardware bug, this is unpredictable and it incorrectly evaluates
@@ -657,15 +657,65 @@ void ppu_clock(struct ppu* ppu)
                     break;
                 }
 
-                // Compute the address to fetch from.
+                // Compute the address to fetch from. This differs depending on the
+                // status of the sprite. 
+                // - Regardless of the sprite size, if the sprite is flipped vertically, 
+                //   it must be read bottom-to-top, rather than top-to-bottom, meaning 
+                //   7 - diff is used for reading a flipped sprite. 
+                // - If an 8x16 sprite is read, the bank from its tile index byte must be 
+                //   used instead of bit 2 of PPUCTRL, and the difference between the
+                //   current scanline andthe top-left y co-ordinate of the sprite is
+                //   used to determine which half is used. If the sprite is flipped
+                //   vertically, the bottom half is read first, otherwise the
+                //   top half is read first, in both pit planes of the pattern
+                //   table.
+                // - For an 8x16 sprite, the bottom half comes one entry after the
+                //   top half in both bit planes of the pattern table.
                 uint16_t address;
                 int16_t diff = ppu->scanline - ppu->sp_latch[ppu->sp_fetched_count].y;
                 if (ppu->ppuctrl.vars.sprite_size)
                 {
-                    // This will be implemented shortly.
+                    // This is an 8x16 sprite. Both the top and bottom halves must be dealt
+                    // with separately.
+
+                    // Is the sprite flipped vertically?
+                    if (ppu->sp_latch[ppu->sp_fetched_count].attributes.vars.flip_vertically)
+                    {
+                        // Is this the top half?
+                        if (diff < 8)
+                        {
+                            address = (ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.bank << 12)
+                                | ((ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.tile_of_top + 1) << 4)
+                                | (7 - (diff & 0b111));
+                        }
+                        else
+                        {
+                            address = (ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.bank << 12)
+                                | (ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.tile_of_top << 4)
+                                | (7 - (diff & 0b111));
+                        }
+                    }
+                    else
+                    {
+                        // Is this the top half?
+                        if (diff < 8)
+                        {
+                            address = (ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.bank << 12)
+                                | (ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.tile_of_top << 4)
+                                | (diff & 0b111);
+                        }
+                        else
+                        {
+                            address = (ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.bank << 12)
+                                | ((ppu->sp_latch[ppu->sp_fetched_count].tile_index.vars.tile_of_top + 1) << 4)
+                                | (diff & 0b111);
+                        }
+                    }
                 }
                 else
                 {
+                    // This is just a 8x8 sprite, which is a lot easier to deal with.
+
                     // Is the sprite flipped vertically?
                     if (ppu->sp_latch[ppu->sp_fetched_count].attributes.vars.flip_vertically)
                     {
