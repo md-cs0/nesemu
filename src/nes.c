@@ -71,7 +71,9 @@ void nes_write(struct nes* computer, uint16_t address, uint8_t byte)
     else if (address == 0x4014)
     {
         computer->oam_page = byte;
+        computer->oam_offset = 0x00;
         computer->oam_executing_dma = true;
+        computer->idle_cycle = computer->cpu->enumerated_cycles & 1;
     }
 
     // $4016: set the controller port latch bit (the expansion port is not emulated).
@@ -111,20 +113,21 @@ void nes_clock(struct nes* computer)
 
             // Handle the number of executed CPU cycles. This procedure takes 513 cycles,
             // + 1 if the first CPU cycle at the time of instantiation was odd.
-            if (!(computer->oam_cycle_count == 0 && computer->cpu->enumerated_cycles & 1))
-                computer->oam_cycle_count++;
-            if (computer->oam_cycle_count > 512)
+            if (computer->idle_cycle)
+                computer->idle_cycle = false;
+            else
             {
-                computer->oam_cycle_count = 0;
-                computer->oam_executing_dma = false;
+                computer->oam_cycle_count++;
+                if (computer->oam_cycle_count > 512)
+                {
+                    computer->oam_cycle_count = 0;
+                    computer->oam_executing_dma = false;
+                }
             }
-
-            // Increment the CPU enumerated cycles count.
-            computer->cpu->enumerated_cycles++;
         }
         else
         {
-            //if (computer->cpu->cycles == 0)
+            ///if (computer->cpu->cycles == 0)
             //    cpu_spew(computer->cpu, computer->cpu->pc, stdout);
             cpu_clock(computer->cpu);
         }

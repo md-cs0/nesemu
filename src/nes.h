@@ -51,6 +51,7 @@ struct nes
 
     // OAM.
     bool oam_executing_dma;
+    bool idle_cycle;
     uint8_t oam_page;
     uint8_t oam_offset;
     int16_t oam_cycle_count;

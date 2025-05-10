@@ -3,6 +3,8 @@
 ; 256x240 image. Currently, only the Ricoh 2C02 is emulated.
 */
 
+// TODO work on other PPUMASK features.
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -106,6 +108,12 @@ static inline bool ppu_isrendering(struct ppu* ppu)
 static inline bool ppu_forcedblanking(struct ppu* ppu)
 {
     return !ppu_isrendering(ppu);
+}
+
+// Is the left-side clipping window enabled?
+static inline bool ppu_left_8x8_enabled(struct ppu* ppu)
+{
+    return ppu->ppumask.vars.show_background_left_8p || ppu->ppumask.vars.show_sprites_left_8p;
 }
 
 // What stage of rendering is the PPU currently in?
@@ -409,9 +417,8 @@ void ppu_clock(struct ppu* ppu)
             ppu->v.vars.fine_y_scroll = ppu->t.vars.fine_y_scroll;
         }
 
-        // Scanlines 0-239 and -1/261, cycles 1-256 and 321-336: generate background.
-        if (-1 <= ppu->scanline && ppu->scanline <= 239 && ((1 <= ppu->cycle && ppu->cycle <= 256)
-            || (321 <= ppu->cycle && ppu->cycle <= 336)))
+        // Cycles 1-256 and 321-336: fetch background data.
+        if ((1 <= ppu->cycle && ppu->cycle <= 256) || (321 <= ppu->cycle && ppu->cycle <= 336))
         {
             // Process each 8-cycle window for the next tile.
             // Admittedly, this was quite a lot to digest, so I'll try to comment this a bit more.
@@ -435,7 +442,7 @@ void ppu_clock(struct ppu* ppu)
             // Process the 8-cycle window.
             switch ((ppu->cycle - 1) & 0b111)
             {
-            // Cycles 0-1 (the latch isn't emulated): nametable byte
+            // Cycles 0-1 (the latch isn't emulated): nametable byte.
             case 0:
                 // For cycles 9, 17, 25... 257 (see cycle == 257 code below as well), 
                 // and cycles 329 and 337, the shift registers must be reloaded, as this
@@ -453,7 +460,7 @@ void ppu_clock(struct ppu* ppu)
                 ppu->bg_next_tile_data = ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
                 break;
 
-            // Cycles 2-3 (the latch isn't emulated): attribute table byte
+            // Cycles 2-3 (the latch isn't emulated): attribute table byte.
             case 2:
                 // First, the attribute data byte must be read.
                 ppu->bg_next_attribute_data = ppu_bus_read(ppu, 0x23C0 
@@ -499,23 +506,22 @@ void ppu_clock(struct ppu* ppu)
             case 4:
                 ppu->bg_next_pt_tile_lsb = ppu_bus_read(ppu, 
                     (ppu->ppuctrl.vars.bg_pt_address << 12)
-                    + (ppu->bg_next_tile_data << 4)
-                    + (0 << 3)
-                    + ppu->v.vars.fine_y_scroll);
+                    | (ppu->bg_next_tile_data << 4)
+                    | (0 << 3)
+                    | ppu->v.vars.fine_y_scroll);
                 break;
             
             // Cycles 6-7 (excluding coarse X scroll): pattern table tile.
-            // Same as above, except the more significant bit plane is toggled.
+            // Same as above, except the more significant bit plane is used.
             case 6:
                 ppu->bg_next_pt_tile_msb = ppu_bus_read(ppu, 
                     (ppu->ppuctrl.vars.bg_pt_address << 12)
-                    + (ppu->bg_next_tile_data << 4)
-                    + (1 << 3)
-                    + ppu->v.vars.fine_y_scroll);
+                    | (ppu->bg_next_tile_data << 4)
+                    | (1 << 3)
+                    | ppu->v.vars.fine_y_scroll);
                 break;
 
-            // Cycle 7: coarse X scroll (inc hori(v)) + fine Y scroll (inc vert(v)) on 
-            // cycle 256.
+            // Cycle 7: coarse X scroll (inc hori(v)).
             case 7:
                 // Handle coarse X scroll. Technically this is from cycle 328 of this
                 // scanline to cycle 256 of the next scanline, but since this happens
@@ -527,61 +533,205 @@ void ppu_clock(struct ppu* ppu)
                         ppu->v.vars.nametable_select ^= 0b01;
                     ppu->v.vars.coarse_x_scroll++;  
                 }
+                break;
+            }
+        }
 
-                // Cycle 256: fine Y scroll.
-                if (ppu->cycle == 256 && ppu_isrendering(ppu))
+        // Cycles 1-64: initialize secondary OAM buffer and reset other sprite-specific 
+        // data here.
+        if (1 <= ppu->cycle && ppu->cycle <= 64)
+        {
+            if ((ppu->cycle & 1) == 0)
+                ppu->oam_secondary_byte_pointer[(ppu->cycle - 1) / 2] = 0xFF;
+            ppu->sp_sprite_0_copied = false;
+            ppu->sp_enumerated = 0;
+            ppu->sp_count = 0;
+            ppu->sp_byte_copy = 0;
+            ppu->sp_fetched_count = 0;
+        }
+
+        // Cycles 65-256 (excluding the pre-render scanline): sprite evaluation.
+        if (65 <= ppu->cycle && ppu->cycle <= 256 && ppu->sp_enumerated < 64 && (ppu->cycle & 1) == 0
+            && ppu->scanline != -1)
+        {
+            // Handle copying to secondary OAM first. Combine odd (reading) and even 
+            // (writing) cycles together.
+            if (ppu->sp_count < 8 && ppu->sp_enumerated < 64)
+            {
+                // If sprite bytes must be copied from primary to secondary OAM, do so.
+                if (ppu->sp_byte_copy > 0)
                 {
-                    if (ppu->v.vars.fine_y_scroll == 0b111)
+                    ppu->oam_secondary_byte_pointer[ppu->sp_count * 4 + ppu->sp_byte_copy]
+                        = ppu->oam_byte_pointer[ppu->sp_enumerated * 4 + ppu->sp_byte_copy];
+                    if (ppu->sp_byte_copy == 3)
                     {
-                        if (ppu->v.vars.coarse_y_scroll == 29)
-                        {
-                            ppu->v.vars.coarse_y_scroll = 0;
-                            ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
-                        }
-                        else
-                            ppu->v.vars.coarse_y_scroll++;
+                        ppu->sp_byte_copy = 0;
+                        ppu->sp_count++;
+                        ppu->sp_enumerated++;
                     }
-                    ppu->v.vars.fine_y_scroll++;
+                    else
+                        ppu->sp_byte_copy++;
                 }
+                else
+                {
+                    // Begin by enumerating the next (starting from n = 0) entry in the
+                    // OAM table. Fetch its Y co-ordinate. If it is within range, dedicate
+                    // the next 6 cycles to copy the remaining bytes. If this is sprite 0,
+                    // indicate that a sprite 0 hit is possible.
+                    ppu->oam_secondary[ppu->sp_count].y = ppu->oam[ppu->sp_enumerated].y;
+                    int16_t diff = ((int16_t)ppu->scanline - (int16_t)ppu->oam[ppu->sp_enumerated].y);
+                    if (0 <= diff && diff < (ppu->ppuctrl.vars.sprite_size ? 0x10 : 0x8))
+                    {
+                        if (ppu->sp_enumerated == 0)
+                            ppu->sp_sprite_0_copied = true;
+                        ppu->sp_byte_copy = 1;
+                    }
+                    else
+                        ppu->sp_enumerated++;
+                }
+            }
+            else if (!ppu->ppustatus.vars.sprite_overflow_flag && ppu->sp_count >= 8 && ppu->sp_enumerated < 64)
+            {
+                // If 8 visible sprites were found, search for a 9th sprite. Unfortunately,
+                // due to a hardware bug, this is unpredictable and it incorrectly evaluates
+                // whether sprite overflow has occurred.
+                int16_t diff = ppu->scanline - ppu->oam_byte_pointer[
+                    ppu->sp_enumerated * 4 + ppu->sp_byte_copy];
+                if (0 <= diff && diff < (ppu->ppuctrl.vars.sprite_size ? 0x10 : 0x8))
+                    ppu->ppustatus.vars.sprite_overflow_flag = 1;
+                else
+                {
+                    // This is where the bug occurs. ppu->sp_enumerated is correctly
+                    // incremented when searching for the next sprite, however so is
+                    // ppu->sp_byte_copy, which should not be the case.
+                    ppu->sp_enumerated++;
+                    ppu->sp_byte_copy = (ppu->sp_byte_copy + 1) % 4;
+                }
+            }
+        }
+
+        // Cycles 257-320: fetch sprite data into latches for the next scanline.
+        if (257 <= ppu->cycle && ppu->cycle <= 320)
+        {
+            // This is very similar to fetching background data, however the nametable
+            // bytes are garbage reads and the fetched pattern table data is for the
+            // sprites instead. The tile data is from each secondary OAM entry's
+            // tile index byte instead.
+
+            // Make sure that sprite 0 is latched.
+            ppu->sp_sprite_0_latch = ppu->sp_sprite_0_copied;
+
+            // Process each 8-cycle window for the next sprite tile.
+            switch ((ppu->cycle - 1) % 8)
+            {
+            // Cycles 0-1 (the latch isn't emulated): unused nametable byte.
+            case 0:
+            {
+                ppu->bg_next_tile_data = ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
+                ppu->sp_latch[ppu->sp_fetched_count].y 
+                    = ppu->oam_secondary[ppu->sp_fetched_count].y;
+                ppu->sp_latch[ppu->sp_fetched_count].tile_index 
+                    = ppu->oam_secondary[ppu->sp_fetched_count].tile_index;
                 break;
             }
 
-            // If within the NES resolution, render this pixel.
-            int x = ppu->cycle - 1, y = ppu->scanline;
-            if (0 <= y && y < NES_H && 0 <= x && x < NES_W)
+            // Cycles 2-3 (the latch isn't emulated): ignored nametable byte.
+            case 2:
             {
-                // Generate the 4-bit background pixel to be drawn.
-                // The default values are 0, assuming that EXT is grounded, since EXT 
-                // will not be emulated here.
-                // TODO: show background in left 8px
-                uint8_t background_pixel = 0;
-                if (ppu->ppumask.vars.background_rendering)
-                {
-                    // Fine X is used to select a bit from bits 8-15 of the shift registers.
-                    uint16_t mux = 15 - ppu->x;
-
-                    // Read the pattern table plane pixels from the given pattern shifters.
-                    background_pixel |= (((ppu->bg_pattern_msb_shifter >> mux) & 0b1) << 1)
-                        | ((ppu->bg_pattern_lsb_shifter >> mux) & 0b1);
-
-                    // Read the palette data from the given attribute shifters.
-                    background_pixel |= (((ppu->bg_attribute_y_shifter >> mux) & 0b1) << 3)
-                        | (((ppu->bg_attribute_x_shifter >> mux) & 0b1) << 2);
-                }
-
-                // For now, because there is no sprite evaluation yet, priority multiplexing
-                // does not need to occur.
-
-                // Finally, read into palette RAM and blit the pixel.
-                ppu->screen[ppu->scanline][ppu->cycle - 1] = palette_lookup[
-                    ppu_bus_read(ppu, 0x3F00 | background_pixel) & 0x3F];
+                ppu_bus_read(ppu, 0x2000 | (ppu->v.reg & 0x0FFF));
+                ppu->sp_latch[ppu->sp_fetched_count].attributes
+                    = ppu->oam_secondary[ppu->sp_fetched_count].attributes;
+                ppu->sp_latch[ppu->sp_fetched_count].x 
+                    = ppu->oam_secondary[ppu->sp_fetched_count].x;
+                break;
             }
 
-            // Shift the shift registers.
-            ppu->bg_pattern_lsb_shifter <<= 1;
-            ppu->bg_pattern_msb_shifter <<= 1;
-            ppu->bg_attribute_x_shifter <<= 1;
-            ppu->bg_attribute_y_shifter <<= 1;
+            // Cycles 4-5: pattern table tile (less significant bit plane).
+            // See the background tile fetching code for more information on this.
+            case 4:
+            {
+                // Check if this was a legitimately fetched sprite.
+                if (ppu->sp_fetched_count >= ppu->sp_count)
+                {
+                    ppu->sp_pattern_lsb_shifter[ppu->sp_fetched_count] = 0;
+                    break;
+                }
+
+                // Compute the address to fetch from.
+                uint16_t address;
+                int16_t diff = ppu->scanline - ppu->sp_latch[ppu->sp_fetched_count].y;
+                if (ppu->ppuctrl.vars.sprite_size)
+                {
+                    // This will be implemented shortly.
+                }
+                else
+                {
+                    // Is the sprite flipped vertically?
+                    if (ppu->sp_latch[ppu->sp_fetched_count].attributes.vars.flip_vertically)
+                    {
+                        address = (ppu->ppuctrl.vars.sprite_pt_address_8x8 << 12)
+                            | (ppu->sp_latch[ppu->sp_fetched_count].tile_index.value << 4)
+                            | (7 - diff);
+                    }
+                    else
+                    {
+                        address = (ppu->ppuctrl.vars.sprite_pt_address_8x8 << 12)
+                            | (ppu->sp_latch[ppu->sp_fetched_count].tile_index.value << 4)
+                            | diff;
+                    }
+                }
+                ppu->sp_fetched_pattern_address = address;
+
+                // Fetch the pattern table tile byte and flip it if necessary.
+                uint8_t byte = ppu_bus_read(ppu, ppu->sp_fetched_pattern_address);
+                if (ppu->oam_secondary[ppu->sp_fetched_count].attributes.vars.flip_horizontally)
+                    byte = reverse_byte(byte);
+                ppu->sp_pattern_lsb_shifter[ppu->sp_fetched_count] = byte;
+                break;
+            }
+
+            // Cycles 6-7 pattern table tile. Same as above, except the more 
+            // significant bit plane is used.
+            case 6:
+            {
+                // Check if this was a legitimately fetched sprite.
+                if (ppu->sp_fetched_count >= ppu->sp_count)
+                {
+                    ppu->sp_pattern_msb_shifter[ppu->sp_fetched_count] = 0;
+                    break;
+                }
+
+                // Fetch the pattern table tile byte and flip it if necessary.
+                uint8_t byte = ppu_bus_read(ppu, ppu->sp_fetched_pattern_address + (1 << 3));
+                if (ppu->oam_secondary[ppu->sp_fetched_count].attributes.vars.flip_horizontally)
+                    byte = reverse_byte(byte);
+                ppu->sp_pattern_msb_shifter[ppu->sp_fetched_count] = byte;
+                break;
+            }
+
+            // Cycle 7: increment ppu->sp_fetched_count.
+            case 7:
+            {
+                ppu->sp_fetched_count++;
+                break;
+            }
+            }
+        }
+
+        // Cycle 256: fine Y scroll.
+        if (ppu->cycle == 256 && ppu_isrendering(ppu))
+        {
+            if (ppu->v.vars.fine_y_scroll == 0b111)
+            {
+                if (ppu->v.vars.coarse_y_scroll == 29)
+                {
+                    ppu->v.vars.coarse_y_scroll = 0;
+                    ppu->v.vars.nametable_select = ppu->v.vars.nametable_select ^ 0b10;
+                }
+                else
+                    ppu->v.vars.coarse_y_scroll++;
+            }
+            ppu->v.vars.fine_y_scroll++;
         }
 
         // Cycle 257: copy coarse X scroll and horizontal nametable select from t to v.
@@ -629,6 +779,119 @@ void ppu_clock(struct ppu* ppu)
     }
     }
 
+    // If within the NES resolution, render this pixel.
+    int x = ppu->cycle - 1, y = ppu->scanline;
+    if (0 <= y && y < NES_H && 0 <= x && x < NES_W)
+    {
+        // Generate the 4-bit background pixel.
+        // The default values are 0, assuming that EXT is grounded, since EXT 
+        // will not be emulated here.
+        uint8_t background_pixel = 0;
+        if (ppu->ppumask.vars.background_rendering)
+        {
+            // Fine X is used to select a bit from bits 8-15 of the shift registers.
+            uint16_t mux = 15 - ppu->x;
+
+            // Read the pattern table plane pixels from the given pattern shifters.
+            background_pixel |= (((ppu->bg_pattern_msb_shifter >> mux) & 0b1) << 1)
+                | ((ppu->bg_pattern_lsb_shifter >> mux) & 0b1);
+
+            // Read the palette data from the given attribute shifters.
+            background_pixel |= (((ppu->bg_attribute_y_shifter >> mux) & 0b1) << 3)
+                | (((ppu->bg_attribute_x_shifter >> mux) & 0b1) << 2);
+        }
+
+        // Generate the 4-bit sprite pixel.
+        uint8_t sprite_pixel = 0;
+        bool bg_priority = false;
+        bool sprite_0 = false;
+        if (ppu->ppumask.vars.sprite_rendering)
+        {
+            // Go through each of the eight sprites.
+            for (int i = 0; i < 8; ++i)
+            {
+                // Check if they are within the horizontal range.
+                if (ppu->sp_latch[i].x > ppu->cycle - 1)
+                    continue;
+
+                // Read the pattern table plane pixels from the given pattern shifters.
+                uint8_t generated = (((ppu->sp_pattern_msb_shifter[i] >> 7) & 0b1) << 1)
+                    | ((ppu->sp_pattern_lsb_shifter[i] >> 7) & 0b1);
+
+                // If this sprite is transparent, ignore it and continue.
+                if (generated == 0)
+                    continue;
+                sprite_pixel = generated;
+                if (ppu->sp_sprite_0_latch && i == 0)
+                    sprite_0 = true;
+
+                // Read the palette data for the sprite, which is stored in latches, rather
+                // than shift registers.
+                sprite_pixel |= (ppu->sp_latch[i].attributes.vars.palette + 0x04) << 2;
+                
+                // Read the priority bit.
+                bg_priority = ppu->sp_latch[i].attributes.vars.priority;
+
+                // Conclude.
+                break;
+            }
+        }        
+
+        // Priority multiplexing: what should be drawn?
+        uint8_t pixel = 0;
+        uint8_t bg_pattern = background_pixel & 0b11, sp_pattern = sprite_pixel & 0b11;
+        if (bg_pattern == 0 && sp_pattern > 0)
+            pixel = sprite_pixel;
+        else if (bg_pattern > 0 && sp_pattern == 0)
+            pixel = background_pixel;
+        else if (bg_pattern > 0 && sp_pattern > 0)
+        {
+            // Choose what should be drawn based on the priority bit.
+            if (bg_priority)
+                pixel = background_pixel;
+            else
+                pixel = sprite_pixel;
+
+            // Check for sprite 0 protection. The criteria for this is as follows:
+            // - Obviously, sprite 0 must be rendered.
+            // - Background and sprite rendering must both be enabled.
+            // - It must be beyond x = 7 if the left-side clliping window is enabled.
+            // - It cannot be x = 255 for some reason.
+            // - Both pixels must be opaque (this condition has already been met here).
+            if (ppu->ppumask.vars.background_rendering && ppu->ppumask.vars.sprite_rendering
+                && ppu->cycle != 256 && (!ppu_left_8x8_enabled(ppu) || ppu->cycle >= 9)
+                && sprite_0)
+                ppu->ppustatus.vars.sprite_0_hit_flag = 1;
+        }
+
+        // Finally, read into palette RAM and blit the pixel.
+        ppu->screen[ppu->scanline][ppu->cycle - 1] = palette_lookup[
+            ppu_bus_read(ppu, 0x3F00 | pixel) & 0x3F];
+    }
+
+    // Cycles 1-256 and 321-336: shift the background shift registers, after the dot has
+    // been drawn.
+    if ((1 <= ppu->cycle && ppu->cycle <= 256) || (321 <= ppu->cycle && ppu->cycle <= 336))
+    {
+        ppu->bg_pattern_lsb_shifter <<= 1;
+        ppu->bg_pattern_msb_shifter <<= 1;
+        ppu->bg_attribute_x_shifter <<= 1;
+        ppu->bg_attribute_y_shifter <<= 1;
+    }
+
+    // Cycles 1-256: shift the sprite shift registers, if they are within range.
+    if (1 <= ppu->cycle && ppu->cycle <= 256)
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            if (ppu->sp_latch[i].x <= ppu->cycle - 1)
+            {
+                ppu->sp_pattern_lsb_shifter[i] <<= 1;
+                ppu->sp_pattern_msb_shifter[i] <<= 1;
+            }
+        }
+    }
+
     // Increment the cycle and scanline count.
     if (ppu->cycle == 340)
     {
@@ -651,9 +914,10 @@ struct ppu* ppu_alloc()
     // As safe_malloc() uses calloc() internally, the registers should already
     // be set to zero.
 
-    // Set the OAM byte pointer to the address of the OAM buffer. This is necessary
-    // for OAMADDR/OAMDATA.
+    // Set the OAM byte pointesr to the addresses of the OAM buffers. This is necessary
+    // for OAMADDR/OAMDATA and sprite evaluation.
     ppu->oam_byte_pointer = (uint8_t*)&ppu->oam;
+    ppu->oam_secondary_byte_pointer = (uint8_t*)&ppu->oam_secondary;
     
     // Return the PPU.
     return ppu;

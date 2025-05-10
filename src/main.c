@@ -147,18 +147,19 @@ int main(int argc, char** argv)
     atexit(process_exit);
     uint64_t timestamp = 0;
     float cached_framerate = 0.f;
+    bool first_frame_rendered = false;
     for (;;)
     {
         // Busywait until the time length of a PPU frame has been complete.
         static float ns_per_ppu_cycle = (float)NANOSECOND / ((float)MASTER_CLOCK / 4);
         uint64_t time_wait = display.computer->ppu->frame_cycles_enumerated * ns_per_ppu_cycle;
-        uint64_t new_timestamp;
+        uint64_t new_timestamp = get_ns_timestamp();
         while (display.computer->ppu->frame_complete 
             && (new_timestamp = get_ns_timestamp()) - timestamp < time_wait)
             continue;
 
         // Calculate the framerate and change the window title.
-        if (new_timestamp > timestamp)
+        if (first_frame_rendered)
         {
             cached_framerate = lerp(cached_framerate, 
                 1 / ((float)(new_timestamp - timestamp) / NANOSECOND), 
@@ -282,6 +283,7 @@ int main(int argc, char** argv)
             nes_clock(display.computer);
         
         // Update the buffer and re-render it.
+        first_frame_rendered = true;
         SDL_UpdateTexture(display.buffer, NULL, &display.computer->ppu->screen, 
             NES_W * sizeof(struct agbr8888));
         update_render();

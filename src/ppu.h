@@ -84,8 +84,8 @@ struct ppu
 
         // X position of the sprite (top-left).
         uint8_t x;
-    } oam[0x40], oam_memory[0x8];
-    uint8_t* oam_byte_pointer;
+    } oam[0x40], oam_secondary[0x8];
+    uint8_t* oam_byte_pointer, *oam_secondary_byte_pointer;
     bool oam_executing_dma;
 
     // Register - PPUCTRL ($2000 write)
@@ -148,7 +148,7 @@ struct ppu
     // PPU flags.
     bool even_odd_frame;                            // 0: even; 1: odd
 
-    // Background rendering.
+    // Background evaluation.
     uint8_t bg_next_tile_data;
     uint8_t bg_next_attribute_data;
     uint8_t bg_next_pt_tile_lsb;
@@ -157,7 +157,19 @@ struct ppu
     uint16_t bg_pattern_msb_shifter;
     uint16_t bg_attribute_x_shifter;
     uint16_t bg_attribute_y_shifter;
-    
+
+    // Sprite evaluation.
+    bool sp_sprite_0_copied;                        // Used for indicating whether sprite 0 was copied.
+    bool sp_sprite_0_latch;                         // Read by the next scanline.
+    uint8_t sp_enumerated;                          // Used when reading through primary OAM.
+    uint8_t sp_count;                               // Number of sprites found on the same scanline.
+    uint8_t sp_byte_copy;                           // Current byte of OAM relative to the sprite address.
+    uint8_t sp_fetched_count;                       // Used for sprite tile fetching in cycles 257-320;
+    uint8_t sp_pattern_lsb_shifter[8];
+    uint8_t sp_pattern_msb_shifter[8];
+    uint16_t sp_fetched_pattern_address;
+    struct oamdata sp_latch[8];
+
     // Timing information.
     int16_t cycle;
     int16_t scanline;
