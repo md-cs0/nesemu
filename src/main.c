@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <memory.h>
 #include <time.h>
 
 #include "SDL.h"
@@ -17,11 +18,12 @@
 struct nes_display_data
 {
     // SDL data.
-    SDL_Window* window;     // The window itself.    
-    SDL_Renderer* renderer; // The renderer used for the window.
-    SDL_Texture* buffer;    // The buffer that is being manipulated by the emulator.
-    unsigned w;             // The current display width.
-    unsigned h;             // The current display height.
+    SDL_Window* window;         // The window itself.    
+    SDL_Renderer* renderer;     // The renderer used for the window.
+    SDL_Texture* buffer;        // The buffer that is being manipulated by the emulator.
+    SDL_AudioDeviceID audio;    // The audio device to queue samples into.
+    unsigned w;                 // The current display width.
+    unsigned h;                 // The current display height.
 
     // NES data.
     struct nes* computer;
@@ -131,12 +133,27 @@ int main(int argc, char** argv)
     // Set the display width/height to the default NES emulator's resolution.
     display.w = NES_W;
     display.h = NES_H;
-    
+
+    // Configure the audio specification.
+    SDL_AudioSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.freq = 44100;              // 44.1KHz
+    spec.format = AUDIO_S16SYS;     // -32768 to 32767 sample values
+    spec.channels = 1;              // Mono; the NES only outputted mono audio
+    spec.samples = 4096;            // 4096-sample buffer
+    spec.callback = NULL;
+
+    // Initialize the audio device.
+    display.audio = SDL_OpenAudioDevice(NULL, 0, &spec, NULL, 0);
+    if (display.audio == 0)
+        sdl_error();
+    SDL_PauseAudioDevice(display.audio, 0);
+
     // Set up the NES computer.
     display.computer = nes_alloc();
     if ((display.cartridge = cartridge_alloc(ines_data, ines_size)) == NULL)
     {
-        fprintf(stderr, "NES ROM FILE IS CORRUPT");
+        fprintf(stderr, "iNES ROM file is corrupt: %s\n", cartridge_error_msg());
         exit(EXIT_FAILURE);
     }
     nes_setcartridge(display.computer, display.cartridge);

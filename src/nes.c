@@ -127,7 +127,7 @@ void nes_clock(struct nes* computer)
         }
         else
         {
-            ///if (computer->cpu->cycles == 0)
+            //if (computer->cpu->cycles == 0)
             //    cpu_spew(computer->cpu, computer->cpu->pc, stdout);
             cpu_clock(computer->cpu);
         }

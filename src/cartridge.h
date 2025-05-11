@@ -46,3 +46,6 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size);
 
 // Free a cartridge instance.
 void cartridge_free(struct cartridge* cartridge);
+
+// Get the cartridge error message.
+const char* cartridge_error_msg();

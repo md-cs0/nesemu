@@ -2,7 +2,6 @@
 ; Game Pak NES cartridge using the iNES binary format.
 */
 
-#include <stdio.h>
 #include <memory.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -13,6 +12,9 @@
 #include "mappers_nrom.h"
 
 #define INES_MAGIC 0x1A53454E
+
+// Internal error message buffer.
+static char error_msg[128];
 
 // iNES file format header.
 struct ines_header
@@ -91,7 +93,10 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
     // If the given size is smaller than the size of the header, we can't
     // even begin to read the header, so exit immediately.
     if (ines_size < sizeof(struct ines_header))
+    {
+        snprintf(error_msg, sizeof(error_msg), "iNES header size too small");
         return NULL;
+    }
 
     // Allocate a new cartridge instance.
     struct cartridge* cartridge = safe_malloc(sizeof(struct cartridge));
@@ -99,7 +104,10 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
 
     // Validate the magic of the cartridge data.
     if (header->magic != INES_MAGIC)
+    {
+        snprintf(error_msg, sizeof(error_msg), "incorrect magic");
         goto corrupt;
+    }
 
     // Validate the overall size of the cartridge data.
     size_t calculated_size = sizeof(struct ines_header);
@@ -109,7 +117,10 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
     calculated_size += (cartridge->prg_rom_size = header->prg_rom_size * 0x4000);
     calculated_size += (cartridge->chr_rom_size = header->chr_rom_size * 0x2000);
     if (ines_size < calculated_size)
+    {
+        snprintf(error_msg, sizeof(error_msg), "expected size $%zX, got $%zX", calculated_size, ines_size);
         goto corrupt;
+    }
 
     // Read the PRG ROM.
     cartridge->prg_rom = safe_malloc(cartridge->prg_rom_size);
@@ -132,7 +143,7 @@ struct cartridge* cartridge_alloc(uint8_t* ines_data, size_t ines_size)
         cartridge->mapper = (struct mapper*)mapper_nrom_alloc();
         break;
     default:
-        fprintf(stderr, "mapper ID %d is currently not supported", mapper_id);
+        snprintf(error_msg, sizeof(error_msg), "mapper ID %03u is currently not supported", mapper_id);
         goto corrupt;
     }
     cartridge->mapper->prg_rom_banks = header->prg_rom_size;
@@ -158,4 +169,10 @@ void cartridge_free(struct cartridge* cartridge)
     free(cartridge->prg_rom);
     free(cartridge->chr_rom);
     free(cartridge);
+}
+
+// Get the cartridge error message.
+const char* cartridge_error_msg()
+{
+    return error_msg;
 }

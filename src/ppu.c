@@ -113,7 +113,7 @@ static inline bool ppu_forcedblanking(struct ppu* ppu)
 // Is the left-side clipping window enabled?
 static inline bool ppu_left_8x8_enabled(struct ppu* ppu)
 {
-    return ppu->ppumask.vars.show_background_left_8p || ppu->ppumask.vars.show_sprites_left_8p;
+    return !ppu->ppumask.vars.show_background_left_8p || !ppu->ppumask.vars.show_sprites_left_8p;
 }
 
 // What stage of rendering is the PPU currently in?
